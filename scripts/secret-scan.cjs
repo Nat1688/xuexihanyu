@@ -28,6 +28,16 @@ const PATTERNS = [
 // Files/globs that may legitimately contain the word "password" etc.
 const ALLOWLIST_FILES = new Set(['.env.example', 'compose.yaml']);
 
+// Test files that intentionally contain SYNTHETIC fixtures for the config
+// boundary (CLP-00-03). These must never hold real values; the scanner still
+// checks them for high-signal patterns (keys, tokens) — only the generic
+// "hardcoded secret assignment" heuristic is relaxed.
+const ALLOWLIST_TEST_FILES = new Set([
+  'apps/api/test/config.spec.ts',
+  'apps/api/test/spa-config.spec.ts',
+  'apps/api/test/health.e2e-spec.ts',
+]);
+
 // Forbidden CP-01+ artifacts (should not exist in this skeleton).
 const FORBIDDEN_PATH_PATTERNS = [
   /(^|[/\\])schema\.prisma$/i,
@@ -67,9 +77,15 @@ for (const file of walk(ROOT)) {
   }
 
   const isAllowlisted = ALLOWLIST_FILES.has(path.basename(rel));
+  const isSyntheticTestFixture = ALLOWLIST_TEST_FILES.has(rel.replace(/\\/g, '/'));
   for (const { name, re } of PATTERNS) {
     if (!re.test(content)) continue;
-    if (isAllowlisted && name === 'hardcoded secret assignment') continue;
+    if (
+      name === 'hardcoded secret assignment' &&
+      (isAllowlisted || isSyntheticTestFixture)
+    ) {
+      continue;
+    }
     findings.push(`[${name}] ${rel}`);
   }
 }
