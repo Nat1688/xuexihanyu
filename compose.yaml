@@ -1,0 +1,51 @@
+# Docker Compose — local development/test PostgreSQL topology (declarations only).
+#
+# CP-00 scope: this file DECLARES the local PostgreSQL services.
+# It contains NO committed credentials: values are interpolated from the
+# developer's local `.env` (see `.env.example`, names only).
+#
+# Declared only. Do not `docker compose up` as part of CLP-00-02.
+# Usage (later tasks, with a local .env present):
+#   docker compose config          # validate interpolation without starting anything
+#   docker compose up -d db        # start the development database
+#   docker compose up -d db-test   # start the isolated integration-test database
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: clp-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-}
+      POSTGRES_USER: ${POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - clp_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-} -d ${POSTGRES_DB:-}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db-test:
+    image: postgres:16-alpine
+    container_name: clp-postgres-test
+    restart: 'no'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-}
+      POSTGRES_USER: ${POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-} -d ${POSTGRES_DB:-}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  clp_db_data:
