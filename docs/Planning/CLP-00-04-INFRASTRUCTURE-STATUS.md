@@ -23,6 +23,8 @@ The PostgreSQL superuser password is unknown after silent installation. Password
 
 `pg_hba.conf` was restored from backup after the unsuccessful recovery attempt. No temporary `trust` rule remains.
 
+A later non-restart recovery probe also failed: `pg_ctl reload -D "C:\\Program Files\\PostgreSQL\\17\\data"` returned `Operation not permitted`. The current agent context cannot reload or restart the Windows PostgreSQL service, so no password recovery action was performed.
+
 ## Required next gate
 
 One of the following must happen before CLP-00-04 implementation:
