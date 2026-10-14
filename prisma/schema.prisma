@@ -1,0 +1,25 @@
+// Prisma schema — CLP-00-04 Database & Migration Foundation.
+//
+// SCOPE: migration foundation ONLY. This file intentionally declares the
+// PostgreSQL datasource and the client generator and **no models**. No user,
+// session, role, content, exercise, learning-event, mastery, reporting or AI
+// table may be added until a later, separately approved task contract
+// (ADR-002 "CP-00 schema scope"; CLP-00-04 "Explicitly forbidden").
+//
+// The connection URL is read from the environment variable named by
+// `datasource.url`. It is NEVER committed: local values live only in the
+// git-ignored `.env` file. Development uses `DATABASE_URL`; the isolated
+// integration-test database uses `TEST_DATABASE_URL` (see scripts/db/*.cjs).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// NO MODELS. Adding a model or table here is forbidden in CLP-00-04.
+// ---------------------------------------------------------------------------

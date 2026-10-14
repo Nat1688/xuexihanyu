@@ -11,12 +11,26 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "format": "npm run format --workspaces --if-present",
-    "format:check": "npm run format:check --workspaces --if-present",
+    "format": "prettier --write \"scripts/**/*.cjs\" && npm run format --workspaces --if-present",
+    "format:check": "prettier --check \"scripts/**/*.cjs\" && npm run format:check --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run build"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run build",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:status": "node scripts/db/db-status.cjs both",
+    "db:status:dev": "node scripts/db/db-status.cjs dev",
+    "db:status:test": "node scripts/db/db-status.cjs test",
+    "db:migrate:deploy": "node scripts/db/db-migrate.cjs deploy",
+    "db:migrate:dev": "node scripts/db/db-migrate.cjs dev",
+    "db:test:reset": "node scripts/db/db-reset-guard.cjs --env test --yes",
+    "db:test:reset:dry-run": "node scripts/db/db-reset-guard.cjs --env test --dry-run",
+    "db:test:validate": "node scripts/db/db-test-validate.cjs",
+    "secret-scan": "node scripts/secret-scan.cjs"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
   }
 }

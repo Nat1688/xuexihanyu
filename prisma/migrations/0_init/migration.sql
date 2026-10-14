@@ -1,0 +1,14 @@
+-- CLP-00-04 baseline migration (migration foundation).
+--
+-- This migration intentionally applies NO DDL. It establishes the migration
+-- history baseline for the "empty" CP-00 foundation schema: there are no
+-- domain tables yet (see prisma/schema.prisma). It exists so that:
+--   1. `prisma migrate dev`/`deploy` has a first, append-only history entry;
+--   2. `prisma migrate status` is inspectable per environment;
+--   3. a fresh database can reach "current" state from zero deterministically.
+--
+-- Forbidden here (CLP-00-04): user/session/role/content/exercise/learning-event/
+-- mastery/reporting/AI tables. The only table that may exist after this
+-- migration is Prisma's own `_prisma_migrations` metadata table.
+--
+-- Applied migrations are immutable: never edit an already-applied migration.

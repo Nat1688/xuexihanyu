@@ -32,3 +32,11 @@ Thumbs.db
 .vite/
 .cache/
 .turbo/
+
+# Prisma
+# Generated client is rebuilt from schema.prisma (do not commit).
+**/generated/prisma/
+prisma/generated/
+# Local migration dev scratch (never commit a local db file)
+*.db
+*.db-journal
