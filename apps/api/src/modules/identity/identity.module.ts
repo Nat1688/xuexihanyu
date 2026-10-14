@@ -3,10 +3,15 @@ import { Module } from '@nestjs/common';
 /**
  * Identity boundary (ADR-001, ADR-004).
  *
- * Future home of users, credentials, sessions, roles and server-side
- * authorization policy. CLP-00-02 adds the boundary ONLY: no schema, migration,
- * login/logout endpoint, session table or RBAC implementation is created here.
- * Functional Identity arrives via later approved CP-00 tasks (CLP-00-05/06/07).
+ * CLP-00-05 adds the identity PERSISTENCE and DOMAIN boundary only:
+ *   - `domain/`         account state, roles, login normalization, public id,
+ *                       password-hash value type, identity aggregate.
+ *   - `application/`     the `PasswordHasher` port (hashing boundary).
+ *   - `infrastructure/`  the scrypt (memory-hard) hasher implementation.
+ *
+ * Still DELIBERATELY ABSENT here (later approved tasks): login/logout/
+ * current-user endpoints, session/cookie/CSRF handling and tables, RBAC
+ * guards/policy, profiles/classes/enrollment. See CLP-00-06/07.
  */
 @Module({})
 export class IdentityModule {}

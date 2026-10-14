@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * CLP-00-04 — Zero→current migration validation for the isolated test database.
+ * CLP-00-04 / CLP-00-05 — Zero→current migration validation for the isolated
+ * test database.
  *
  * Steps (all against TEST_DATABASE_URL = clp_test only):
  *   1. Guard: refuse unless the URL is exactly a local `clp_test`.
  *   2. Drop & recreate the target database from zero (deterministic reset),
  *      then `prisma migrate deploy` to reach current state.
  *   3. `prisma migrate status` to prove it is up to date.
- *   4. Inspect non-system tables: assert the ONLY present table is Prisma's
- *      migration metadata (`_prisma_migrations`). Any other table means a
- *      domain schema leaked in and the check FAILS.
+ *   4. Inspect base tables: assert the ONLY present tables are Prisma's
+ *      migration metadata (`_prisma_migrations`) plus the approved CLP-00-05
+ *      identity tables (`users`, `password_credentials`, `user_roles`). Any
+ *      other table means an out-of-scope schema leaked in and the check FAILS.
  *
  * Exit 0 only when every step passes.
  */
@@ -18,14 +20,21 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 const { classifyUrl, safeTarget, assertResettable } = require('./db-url.cjs');
+
+// Approved base tables (CLP-00-05 identity domain) + Prisma metadata.
+const APPROVED_TABLES = new Set([
+  '_prisma_migrations',
+  'users',
+  'password_credentials',
+  'user_roles',
+]);
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 
 function prisma(args, url) {
-  const prismaBin = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+  const prismaBin = path.join(REPO_ROOT, 'node_modules', '.bin', 'prisma');
   return spawnSync(prismaBin, args, {
     cwd: REPO_ROOT,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
     env: { ...process.env, DATABASE_URL: url },
   });
 }
@@ -85,24 +94,26 @@ function main() {
     process.exit(1);
   }
 
-  // 4. Table inspection: only Prisma migration metadata may exist.
+  // 4. Table inspection: only Prisma metadata + approved identity tables.
   const tables = listTables(raw);
   if (tables === null) {
     process.stdout.write(
       '[db-test-validate] NOTE: psql unavailable; skipped table inventory check.\n',
     );
   } else {
-    const domainTables = tables.filter((t) => t !== '_prisma_migrations');
+    const unexpected = tables.filter((t) => !APPROVED_TABLES.has(t));
     process.stdout.write(`[db-test-validate] tables: ${tables.join(', ') || '(none)'}\n`);
-    if (domainTables.length) {
+    if (unexpected.length) {
       process.stderr.write(
-        `[db-test-validate] FAIL: unexpected domain table(s): ${domainTables.join(', ')}\n`,
+        `[db-test-validate] FAIL: unexpected table(s): ${unexpected.join(', ')}\n`,
       );
       process.exit(1);
     }
   }
 
-  process.stdout.write('[db-test-validate] PASS: zero->current, no domain tables.\n');
+  process.stdout.write(
+    '[db-test-validate] PASS: zero->current, only approved identity tables present.\n',
+  );
 }
 
 if (require.main === module) {

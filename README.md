@@ -2,15 +2,18 @@
 
 NestJS REST API + React/Vite SPA skeleton for the Chinese Learning Platform.
 
-**Checkpoint:** CP-00 (Foundation) — **Task:** CLP-00-04 (Database & Migration Foundation).
+**Checkpoint:** CP-00 (Foundation) — **Latest task:** CLP-00-05 (Identity Domain).
 
-> **Scope note.** This repository currently contains a **skeleton only**. There is **no**
-> database schema, migration of domain tables, login/logout, RBAC, learning-domain feature
-> (content, exercise, learning events, mastery, reporting) or AI integration. Module boundaries
-> exist as empty placeholders per ADR-001; the health scaffold exists only to prove build/start
-> behavior. CLP-00-03 adds a **typed, validated configuration boundary**; CLP-00-04 adds a
-> **Prisma migration foundation with no models** (empty baseline only). Do not treat any part of
-> this skeleton as an implemented product feature.
+> **Scope note.** This repository is an early foundation. CLP-00-05 adds the **identity domain
+> boundary** — exactly three Prisma tables (`users`, `password_credentials`, `user_roles`) plus a
+> memory-hard password-hashing boundary and synthetic tests — per ADR-004. There is **still no**
+> login/logout/current-user session flow, **no** RBAC guards/controllers, **no** profile/class/
+> enrollment, **no** learning-domain feature (content, exercise, learning events, mastery,
+> reporting) and **no** AI integration. Module boundaries beyond identity remain empty
+> placeholders per ADR-001; the health scaffold proves build/start behavior. CLP-00-03 adds a
+> **typed, validated configuration boundary**; CLP-00-04 adds the **Prisma migration
+> foundation**; CLP-00-05 adds the **identity schema + domain/hashing boundary**. Do not treat
+> any part of this skeleton as an implemented product feature.
 
 ## Prerequisites
 
@@ -35,7 +38,10 @@ chinese-learning-foundation/
 │   │       └── modules/
 │   │           ├── foundation/       # cross-cutting contracts (placeholder)
 │   │           ├── health/           # safe liveness/readiness scaffold
-│   │           ├── identity/         # EMPTY placeholder (later CP-00 tasks)
+│   │           ├── identity/         # CLP-00-05 identity domain + hashing boundary
+│   │           │   ├── domain/       # login/role/state/public-id/password-hash/user
+│   │           │   ├── application/  # PasswordHasher port
+│   │           │   └── infrastructure/ # scrypt (memory-hard) hasher
 │   │           ├── content/          # EMPTY placeholder (CP-01)
 │   │           ├── exercise/         # EMPTY placeholder (CP-02)
 │   │           ├── learning-events/  # EMPTY placeholder (CP-03)
@@ -43,17 +49,19 @@ chinese-learning-foundation/
 │   │           ├── reporting/        # EMPTY placeholder
 │   │           └── ai/               # EMPTY placeholder (CP-07+)
 │   └── web/                      # React 19 + Vite 6 SPA (TypeScript)
-├── apps/api/test/                # unit + API tests (see docs/Testing/TEST-HARNESS.md)
+├── apps/api/test/                # unit + API + DB tests (see docs/Testing/TEST-HARNESS.md)
 │   ├── protected/                # *.spec.ts (unit) + *.e2e-spec.ts (API, no DB)
+│   ├── db/                       # schema/tooling *.spec.ts + *.int-spec.ts (clp_test)
 │   └── support/                  # shared harness: factories + Nest lifecycle helper
 ├── compose.yaml                  # local PostgreSQL dev/test topology (declarations only)
-├── prisma/                       # CLP-00-04 migration foundation (NO models)
-│   ├── schema.prisma             # datasource + client generator only
-│   └── migrations/0_init/        # baseline migration (applies no DDL)
+├── prisma/                       # CLP-00-04 foundation + CLP-00-05 identity schema
+│   ├── schema.prisma             # datasource + generator + 3 identity models
+│   └── migrations/               # 0_init baseline + identity_domain migration
 ├── scripts/
 │   ├── db/                       # DB URL classification, guard, status, migrate, validate
-│   └── secret-scan.cjs           # secret/artifact scan (also blocks Prisma models in CP-00)
+│   └── secret-scan.cjs           # secret/artifact scan (also guards approved models/tables)
 ├── docs/Database/MIGRATIONS.md   # migration foundation guide
+├── docs/Database/IDENTITY.md     # CLP-00-05 identity domain guide
 ├── .env.example                  # environment variable NAMES only
 └── package.json                  # npm workspaces root
 ```
@@ -81,12 +89,14 @@ cp .env.example .env        # Windows: copy .env.example .env
 | `npm run typecheck`    | TypeScript typecheck (no emit) for both apps                       |
 | `npm run build`        | Build the API (`nest build`) and SPA (`vite build`)                |
 | `npm test`             | Run automated tests (API unit + API integration; SPA has none yet) |
+| `npm run test:integration` | Run live-DB `*.int-spec.ts` suites against `clp_test`          |
 | `npm run verify`       | format:check + lint + typecheck + build                            |
 | `npm run db:validate`  | Validate `prisma/schema.prisma` (no DB connection)                 |
+| `npm run db:generate`  | Regenerate the Prisma client from the schema                       |
 | `npm run db:status`    | Prisma migration status (dev + test)                               |
 | `npm run db:migrate:deploy` | Apply pending migrations to `clp_dev`                         |
 | `npm run db:test:reset`| **Destructive** reset of `clp_test` only (guard-protected)         |
-| `npm run db:test:validate` | Zero→current validation of `clp_test`, asserts no domain tables |
+| `npm run db:test:validate` | Zero→current validation of `clp_test`, asserts only approved tables |
 
 ### Run the API
 
@@ -158,16 +168,16 @@ Any new configuration key must be **classified** (server-required / server-optio
 SPA-public) and added here by an amendment to the CLP-00-03 contract. A `VITE_` key may never
 carry database, password, session, CSRF, token, secret or credential data.
 
-## Testing (CLP-00-08A)
+## Testing (CLP-00-08A + CLP-00-05)
 
-Tests are split by layer and kept **non-database** in CP-00:
+Tests are split by layer:
 
 | Layer           | Suffix         | Location                   | Nest? | PostgreSQL? |
 | --------------- | -------------- | -------------------------- | ----- | ----------- |
 | Unit            | `.spec.ts`     | `apps/api/test/protected/` | No    | No          |
 | API/integration | `.e2e-spec.ts` | `apps/api/test/protected/` | Yes   | No          |
 | DB tooling unit | `.spec.ts`     | `apps/api/test/db/`        | No    | No          |
-| Database (live) | _(deferred)_   | `apps/api/test/db/`        | Yes   | CLP-00-04+  |
+| Database (live) | `.int-spec.ts` | `apps/api/test/db/`        | Prisma| `clp_test`  |
 
 - `apps/api/test/support/factories.ts` — **synthetic** env/config factories
   (`makeEnv`, `makeEnvMissing`, `syntheticSecretValue`). Deterministic, isolated,
@@ -176,26 +186,50 @@ Tests are split by layer and kept **non-database** in CP-00:
   (`createTestApp`, `withTestApp`) that **always closes** the application.
 
 Full conventions: **[`docs/Testing/TEST-HARNESS.md`](docs/Testing/TEST-HARNESS.md)**.
-`apps/api/test/db/` holds **pure-logic** specs for the CLP-00-04 database tooling (URL
-classification, reset guard, env loader, schema invariant) — these require **no** database.
-Live database integration fixtures remain deferred to a later task.
+`apps/api/test/db/` holds **pure-logic** specs for the database tooling (URL classification,
+reset guard, env loader, identity-schema invariants) — these require **no** database. The
+**live** database integration suite (`identity-persistence.int-spec.ts`) connects to the
+isolated `clp_test` database and runs via `npm run test:integration`; it **skips** (not fails)
+when that database is unavailable.
 
-## Database & migrations (CLP-00-04)
+## Identity domain (CLP-00-05)
 
-The migration foundation uses **Prisma** (ADR-002): `prisma/schema.prisma` declares the
-PostgreSQL datasource and client generator with **no models**, and a single **baseline
-migration** (`prisma/migrations/0_init/`) applies **no DDL**. Destructive resets are gated to a
-local **`clp_test`** database only; `clp_dev` and any other database are always refused.
+The identity boundary implements the approved ADR-004 slice:
+
+- **Persistence** — three Prisma tables only: `users` (public UUID + normalized unique login +
+  state), `password_credentials` (1:1; hash + algorithm metadata only), `user_roles`
+  (ADMIN/TEACHER/STUDENT; composite PK). See
+  [`docs/Database/IDENTITY.md`](docs/Database/IDENTITY.md).
+- **Domain** (`apps/api/src/modules/identity/domain/`) — login normalization (NFC → trim →
+  lower-case), role validation, account-state vocabulary (`PENDING | ACTIVE | DISABLED`),
+  public-id minting (UUID v4, branded type), password-hash value type, and an identity
+  aggregate with a pure `canAuthenticate` predicate.
+- **Hashing boundary** — the application **port** `PasswordHasher` with a **scrypt**
+  (RFC 7914, memory-hard) implementation (`node:crypto`). Stores only a hash; the plaintext is
+  never persisted, logged or leaked into errors.
+
+No login/logout/current-user/session/cookie/CSRF behavior and no RBAC guard/controller exist
+here — those are CLP-00-06/07.
+
+## Database & migrations (CLP-00-04 + CLP-00-05)
+
+Migrations use **Prisma** (ADR-002) with an **append-only** history and no `db push`.
+`prisma/schema.prisma` declares the PostgreSQL datasource, the client generator and the three
+approved identity models; migrations are `0_init` (baseline, no DDL) and the identity-domain
+migration. Destructive resets are gated to a local **`clp_test`** database only; `clp_dev` and
+any other database are always refused.
 
 ```bash
 npm run db:validate            # schema parses (no connection)
 npm run db:migrate:deploy      # apply migrations to clp_dev
 npm run db:test:reset:dry-run  # report what a reset would do (no change)
-npm run db:test:validate       # zero->current on clp_test + "no domain tables" check
+npm run db:test:validate       # zero->current on clp_test + approved-tables-only check
 ```
 
 See **[`docs/Database/MIGRATIONS.md`](docs/Database/MIGRATIONS.md)** for the full command set,
-the strict reset guard rules, and the append-only / no-`db push` policy.
+the strict reset guard rules, and the append-only / no-`db push` policy, and
+**[`docs/Database/IDENTITY.md`](docs/Database/IDENTITY.md)** for the identity schema and hashing
+boundary.
 
 ## Local PostgreSQL
 
@@ -213,35 +247,36 @@ The Prisma migration foundation (CLP-00-04) targets local PostgreSQL databases `
 **not** connect to a database at runtime — no domain schema, session store or repository exists
 yet; those arrive in later approved tasks.
 
-## Definition of done for this task
+## Definition of done for CLP-00-05
 
 - clean `npm install` / `npm ci`;
 - `npm run build` (API + SPA) succeeds;
 - `npm run format:check`, `npm run lint`, `npm run typecheck` succeed;
-- `npm test` (config + health suites) and the secret scan (`node scripts/secret-scan.cjs`) pass;
-- API starts with valid config, logs no config dump/secret, and **fails fast (non-zero)** on
-  missing/invalid required config with a safe diagnostic;
-- Browser bundle receives only documented `VITE_` public keys; no server database/session
-  secret appears in SPA source/bundle/config;
-- module boundaries exist with no CP-01+ behavior/schema;
-- Compose declares PostgreSQL without committed credentials; `.env.example` has names/placeholders only;
-- Prisma schema declares **no models**; baseline migration applies **no DDL**;
-- `clp_test` reset is guarded to a local `clp_test` only; `clp_dev`/others are refused;
-- `db:test:validate` reaches current state from zero on `clp_test` with no domain tables.
+- `npm test` (unit + API + schema/db-tooling) passes; `npm run test:integration` passes against
+  `clp_test`; secret scan (`node scripts/secret-scan.cjs`) passes;
+- identity migration applies on `clp_dev`; `clp_test` reaches current state from zero;
+- public UUID and normalized-login uniqueness enforced; role membership limited to the three ADR
+  roles; account state limited to approved values; only password hashes persisted;
+- table inventory contains only Prisma metadata plus the three approved identity tables;
+- no login/logout/current-user/session, no RBAC guard/controller, no profile/class/enrollment,
+  no learning-domain or AI schema/behavior, no seed/bootstrap admin;
+- module boundaries exist with no CP-01+ behavior/schema.
 
 ## Known deferred decisions
 
 - **Repository host / CI provider** — deferred by Owner; must be chosen before CLP-00-09.
   This repository is **Git local only** for now: no remote, no CI workflow.
 - **Prisma / migration tooling and exact versions** — **foundation added in CLP-00-04**
-  (Prisma 6.19.3 pinned; empty baseline migration; ADR-002). Domain schema/modules are later tasks.
-- **Domain schema & live DB test fixtures** — later approved tasks (CLP-00-05+); CP-00 keeps the
-  schema model-free.
+  (Prisma 6.19.3 pinned; baseline migration; ADR-002); identity schema added in CLP-00-05.
+- **Domain schema & live DB test fixtures** — **identity slice done in CLP-00-05** (three ADR-004
+  tables, memory-hard hashing, live `clp_test` integration suite); the remaining learning-domain
+  schema arrives in later approved tasks.
 - **Typed configuration loading & secret boundary** — **done in CLP-00-03** (ADR-001/ADR-005);
   a new key requires a classification amendment.
 - **Session cookie / CSRF / CORS concrete settings** — CLP-00-06 under ADR-003.
 - **Rate limiting, security headers, structured logging/redaction** — CLP-00-10 (ADR-005).
-- **Identity schema, login/logout, RBAC implementation** — CLP-00-05/06/07.
+- **Identity schema** — **done in CLP-00-05**; **login/logout/current-user (CLP-00-06)** and
+  **RBAC guards/policy (CLP-00-07)** remain.
 - **Readiness dependency checks (PostgreSQL)** — added with persistence in CLP-00-10; the
   current `/health/ready` reports application readiness only and explicitly **not** DB readiness.
 - **Production topology, TLS/reverse proxy, browser support policy** — deferred (ADR-003).

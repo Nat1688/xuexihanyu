@@ -17,6 +17,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:integration": "npm run test:integration -w @clp/api",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run build",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",

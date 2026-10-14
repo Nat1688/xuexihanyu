@@ -13,12 +13,16 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
+  // Default suite: unit + API/integration (no live DB). Live-database
+  // integration specs use the `*.int-spec.ts` suffix and run via the separate
+  // `jest.integration.config.cjs` (`npm run test:integration`), so the default
+  // `npm test` never requires a running PostgreSQL.
   testRegex: '.*\\.(spec|e2e-spec)\\.ts$',
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/coverage/', '/test/support/', '\\.int-spec\\.ts$'],
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
   },
   collectCoverageFrom: ['src/**/*.ts'],
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/coverage/', '/test/support/'],
 };

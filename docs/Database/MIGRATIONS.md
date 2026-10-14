@@ -1,27 +1,52 @@
-# Database & Migration Foundation (CLP-00-04)
+# Database & Migration Foundation (CLP-00-04) + Identity Schema (CLP-00-05)
 
-**Task:** CLP-00-04 — Database & migration foundation.
+**Tasks:** CLP-00-04 — Database & migration foundation; CLP-00-05 — Identity domain schema.
 **ADR:** [ADR-002](../../Architecture/ADR/ADR-002-postgresql-migrations-test-db.md) (PostgreSQL + Prisma
-migrations + isolated test DB).
+migrations + isolated test DB), [ADR-004](../../Architecture/ADR/ADR-004-identity-rbac.md) (identity/RBAC).
 
-This document describes the **migration foundation only**. There is **no domain schema** yet:
-`prisma/schema.prisma` declares the PostgreSQL datasource and the Prisma client generator and
-**no models**. Users, sessions, roles, content, exercises, learning events, mastery, reporting
-and AI tables are all **forbidden** in CP-00 and arrive in later, separately approved tasks.
+CLP-00-04 established the **migration foundation** with **no models** (empty baseline). CLP-00-05
+supersedes that specific scope by adding **exactly three identity models** — `users`,
+`password_credentials`, `user_roles` — per ADR-004. Everything else remains **forbidden** in
+CP-00: sessions/login/CSRF tables, profiles, classes/enrollment, teacher/student relationships,
+content, exercises, learning events, mastery, reporting and AI tables arrive in later,
+separately approved tasks.
 
-## What CLP-00-04 delivers
+## Identity schema (CLP-00-05)
+
+| Model (Prisma)         | Table                  | Purpose                                                       |
+| ---------------------- | ---------------------- | ------------------------------------------------------------- |
+| `User`                 | `users`                | Stable identity: public UUID, normalized unique login, state. |
+| `PasswordCredential`   | `password_credentials` | 1:1 with `users`; **hash only** + algorithm metadata.         |
+| `UserRoleAssignment`   | `user_roles`           | Role membership: ADMIN / TEACHER / STUDENT (composite PK).    |
+
+Enums: `AccountState` = `PENDING | ACTIVE | DISABLED`; `UserRole` = `ADMIN | TEACHER | STUDENT`.
+
+Key invariants (enforced in the DB and in tests):
+
+- `users.public_id` — **UUID v4, UNIQUE**, the only externally surfaced identifier (never the
+  surrogate `id`).
+- `users.login_normalized` — **UNIQUE**; `login` holds the raw form. The domain normalizes
+  (NFC → trim → lower-case) so casing/whitespace variants collide to one identity.
+- `users.state` — enum, defaults to `PENDING`.
+- `password_credentials` stores `algorithm`, `parameters` (JSONB) and `hash` **only** — there is
+  no plaintext/reversible column. 1:1 via `UNIQUE(user_id)`.
+- `user_roles` — `role` constrained by the enum; composite PK `(user_id, role)` prevents
+  duplicates.
+
+## What CLP-00-04/05 deliver
 
 | Artifact                       | Purpose                                                             |
 | ------------------------------ | ------------------------------------------------------------------- |
-| `prisma/schema.prisma`         | Datasource (`postgresql`) + `prisma-client-js` generator, **no models** |
+| `prisma/schema.prisma`         | Datasource (`postgresql`) + `prisma-client-js` generator + 3 identity models |
 | `prisma/migrations/0_init/`    | Baseline migration (applies **no DDL**) — history baseline          |
+| `prisma/migrations/<ts>_identity_domain/` | Identity DDL: enums + 3 tables + indexes + FKs           |
 | `prisma/migrations/migration_lock.toml` | Pins the migration provider (`postgresql`)                 |
 | `scripts/db/db-url.cjs`        | URL parse/classify + **strict reset guard** logic (pure, no I/O)    |
 | `scripts/db/env.cjs`           | Reads the git-ignored `.env` for the DB URL names                   |
 | `scripts/db/db-status.cjs`     | Migration status inspector (dev / test / both)                      |
 | `scripts/db/db-migrate.cjs`    | `deploy` / `dev` / `validate` migration runner wrapper              |
 | `scripts/db/db-reset-guard.cjs`| **`clp_test`-only** destructive reset guard (dry-run by default)    |
-| `scripts/db/db-test-validate.cjs` | Zero→current validation + "no domain tables" assertion           |
+| `scripts/db/db-test-validate.cjs` | Zero→current validation + **approved-tables-only** assertion     |
 
 ## Datasource & connection URLs
 
@@ -54,7 +79,7 @@ Connection URLs must target **local hosts** (`localhost`, `127.0.0.1`, `::1`,
 # Validate the schema parses (no DB connection)
 npm run db:validate
 
-# Regenerate the Prisma client from schema.prisma (no models -> empty client)
+# Regenerate the Prisma client from schema.prisma
 npm run db:generate
 
 # Inspect migration status
@@ -73,7 +98,7 @@ npm run db:migrate:dev
 npm run db:test:reset:dry-run       # classify + report, no change
 npm run db:test:reset               # reset clp_test and re-apply migrations from zero
 
-# Full zero->current validation on clp_test + "no domain tables" assertion
+# Full zero->current validation on clp_test + approved-tables-only assertion
 npm run db:test:validate
 ```
 
@@ -100,20 +125,23 @@ npm run db:test:validate
 (report only). The guard is covered by unit tests
 (`apps/api/test/db/db-url.spec.ts`, `db-env-guard.spec.ts`).
 
-## Verification performed (this task)
+## Verification performed (CLP-00-05 task)
 
 Against a local PostgreSQL 15.19 instance with `clp_app` (non-superuser):
 
-- `npm run db:migrate:deploy` → `0_init` applied to `clp_dev`; `db:status:dev` = up to date.
-- `npm run db:test:reset:dry-run` → reported `would be permitted with --yes` (no change);
-  `--env dev` dry-run → **refused** (`only clp_test may be reset`).
-- `npm run db:test:reset` → reset `clp_test` to zero then applied `0_init`.
-- `npm run db:test:validate` → `PASS: zero->current, no domain tables`.
-- Table inventory (both DBs): only `_prisma_migrations` exists — **no domain tables**.
+- `npm run db:validate` → schema parses (`prisma/schema.prisma` valid).
+- `node scripts/db/db-migrate.cjs deploy` → `20261014100700_identity_domain` applied to `clp_dev`;
+  `db:status both` → up to date (dev) / pending (test, before deploy).
+- `npm run db:test:validate` → `PASS: zero->current, only approved identity tables present.`
+- Table inventory (both DBs): `_prisma_migrations`, `password_credentials`, `user_roles`, `users`
+  — the three approved identity tables only.
+- Live integration suite `npm run test:integration` (against `clp_test`): 5/5 PASS — public-UUID
+  uniqueness, normalized-login uniqueness, account-state enum, role enum + PK, hash-only credential
+  1:1.
 
 ## Local database impact
 
 The tooling creates/uses **`clp_dev`** and **`clp_test`** on your local PostgreSQL only. It
-creates no tables other than Prisma's own `_prisma_migrations` bookkeeping table, and performs
-**no** destructive action unless `db:test:reset` (or `db:test:validate`) is invoked with the
-guard's confirmation against `clp_test`.
+creates only Prisma's `_prisma_migrations` bookkeeping table plus the three approved CLP-00-05
+identity tables, and performs **no** destructive action unless `db:test:reset` (or
+`db:test:validate`) is invoked with the guard's confirmation against `clp_test`.

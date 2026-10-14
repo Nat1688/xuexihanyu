@@ -1,15 +1,21 @@
-// Prisma schema — CLP-00-04 Database & Migration Foundation.
+// Prisma schema — CLP-00-05 Identity Domain.
 //
-// SCOPE: migration foundation ONLY. This file intentionally declares the
-// PostgreSQL datasource and the client generator and **no models**. No user,
-// session, role, content, exercise, learning-event, mastery, reporting or AI
-// table may be added until a later, separately approved task contract
-// (ADR-002 "CP-00 schema scope"; CLP-00-04 "Explicitly forbidden").
+// SCOPE: the three APPROVED identity tables ONLY (ADR-004, CLP-00-05):
+//   - users                (stable public UUID, normalized unique login, state)
+//   - password_credentials (1:1 user, memory-hard hash + algorithm metadata)
+//   - user_roles           (membership constrained to ADMIN/TEACHER/STUDENT)
+//
+// This supersedes the CLP-00-04 "no models" foundation (that contract's scope
+// was the migration foundation only). The later CP-00 identity task explicitly
+// authorizes exactly these three models and NOTHING else. Still FORBIDDEN here
+// (CLP-00-05 "Forbidden"): session/login/current-user tables, profile/class/
+// enrollment, teacher/student relationship, content/exercise/learning-event/
+// mastery/reporting/AI tables, seed/bootstrap rows.
 //
 // The connection URL is read from the environment variable named by
-// `datasource.url`. It is NEVER committed: local values live only in the
-// git-ignored `.env` file. Development uses `DATABASE_URL`; the isolated
-// integration-test database uses `TEST_DATABASE_URL` (see scripts/db/*.cjs).
+// `datasource.url`; it is NEVER committed. Development uses `DATABASE_URL`;
+// the isolated integration-test database uses `TEST_DATABASE_URL`
+// (see scripts/db/*.cjs).
 
 generator client {
   provider = "prisma-client-js"
@@ -21,5 +27,76 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// NO MODELS. Adding a model or table here is forbidden in CLP-00-04.
+// Approved account lifecycle states (subset of ADR-004 used by CP-00).
 // ---------------------------------------------------------------------------
+enum AccountState {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+// ---------------------------------------------------------------------------
+// Approved role membership values (ADR-004). Exactly three.
+// ---------------------------------------------------------------------------
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+// ---------------------------------------------------------------------------
+// users — stable identity record.
+//   - `id`         internal surrogate key (never exposed outside persistence).
+//   - `publicId`   non-guessable external UUID (the only identifier surfaced).
+//   - `login`      raw login identifier as supplied.
+//   - `loginNormalized` normalized (trimmed + lower-cased) login, UNIQUE.
+//   - `state`      PENDING | ACTIVE | DISABLED.
+// ---------------------------------------------------------------------------
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  publicId        String       @unique @default(uuid()) @map("public_id") @db.Uuid
+  login           String       @db.VarChar(320)
+  loginNormalized String       @unique @map("login_normalized") @db.VarChar(320)
+  state           AccountState @default(PENDING)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  credential      PasswordCredential?
+  roles           UserRoleAssignment[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// password_credentials — 1:1 with users. Stores ONLY a memory-hard hash and
+// the algorithm metadata needed to verify it. NO plaintext/reversible value.
+// ---------------------------------------------------------------------------
+model PasswordCredential {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  algorithm      String   @db.VarChar(64)
+  parameters     Json
+  hash           String   @db.VarChar(512)
+  passwordChangedAt DateTime @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_credentials")
+}
+
+// ---------------------------------------------------------------------------
+// user_roles — normalized role membership. Role value constrained to the three
+// ADR-004 roles by the enum type + a primary key that prevents duplicates.
+// ---------------------------------------------------------------------------
+model UserRoleAssignment {
+  userId    String   @map("user_id") @db.Uuid
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@map("user_roles")
+}

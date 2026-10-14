@@ -28,17 +28,17 @@ const PATTERNS = [
 // Files/globs that may legitimately contain the word "password" etc.
 const ALLOWLIST_FILES = new Set(['.env.example', 'compose.yaml']);
 
-// CLP-00-04 foundation artifacts that are now expected to exist. They are no
-// longer "forbidden CP-01+ artifacts" — but they are still scanned for secrets
-// AND cross-checked (see FORBIDDEN_PRISMA_MODEL / domain-table checks below).
+// CLP-00-04/00-05 Prisma artifacts that are now expected to exist.
 const ALLOWED_PRISMA_PATHS = [
   /(^|[/\\])prisma[/\\]schema\.prisma$/i,
   /(^|[/\\])prisma[/\\]migrations[/\\]/i,
 ];
 
-// CLP-00-04: domain/model markers are enforced structurally below — the schema
-// must declare no models and migrations must not CREATE TABLE. No term list is
-// needed because any model or table at all is forbidden in CP-00.
+// CLP-00-05: identity schema is authorized, but ONLY the three ADR-004 models
+// and their three tables. Any other model/table means a later-checkpoint or
+// forbidden schema leaked in.
+const APPROVED_MODELS = new Set(['User', 'PasswordCredential', 'UserRoleAssignment']);
+const APPROVED_TABLES = new Set(['users', 'password_credentials', 'user_roles']);
 
 // Test files that intentionally contain SYNTHETIC fixtures for the config
 // boundary (CLP-00-03). These must never hold real values; the scanner still
@@ -53,9 +53,10 @@ const ALLOWLIST_TEST_FILES = new Set([
 ]);
 
 // Forbidden CP-01+ artifacts (should not exist in this skeleton).
-// NOTE: `prisma/` + `schema.prisma` + `migrations/` are permitted ONLY for the
-// CLP-00-04 foundation (see ALLOWED_PRISMA_PATHS); everything else remains
-// forbidden and a Prisma schema carrying models is rejected separately.
+// NOTE: `prisma/` + `schema.prisma` + `migrations/` are permitted for the
+// CLP-00-04 foundation and the CLP-00-05 identity schema (see
+// ALLOWED_PRISMA_PATHS); everything else remains forbidden and a Prisma schema
+// declaring a non-approved model is rejected separately.
 const FORBIDDEN_PATH_PATTERNS = [/(^|[/\\])\.github[/\\]workflows[/\\]/i];
 
 function isAllowedPrismaPath(rel) {
@@ -102,23 +103,32 @@ for (const file of walk(ROOT)) {
     findings.push(`[${name}] ${rel}`);
   }
 
-  // CLP-00-04: the foundation Prisma schema must declare NO models, and no
-  // migration may create a domain table. This keeps CP-00 free of learning-
-  // domain schema even though the prisma/ path is now permitted.
+  // CLP-00-05: the identity schema may declare ONLY the three approved models
+  // (users / password_credentials / user_roles), and no migration may create a
+  // table outside that approved set (plus Prisma's own metadata table).
   if (/(^|[/\\])schema\.prisma$/i.test(rel)) {
-    const modelDecls = content.match(/^\s*model\s+\w+\s*\{/gm) || [];
-    if (modelDecls.length) {
-      findings.push(
-        `[forbidden prisma model] ${rel} declares ${modelDecls.length} model(s); CLP-00-04 allows none`,
-      );
+    const modelDecls = content.match(/^\s*model\s+(\w+)\s*\{/gm) || [];
+    for (const decl of modelDecls) {
+      const name = decl.replace(/^\s*model\s+/, '').replace(/\s*\{$/, '');
+      if (!APPROVED_MODELS.has(name)) {
+        findings.push(
+          `[forbidden prisma model] ${rel} declares "${name}"; CLP-00-05 allows only ` +
+            `${[...APPROVED_MODELS].join(', ')}`,
+        );
+      }
     }
   }
   if (/(^|[/\\])migrations[/\\].*\.sql$/i.test(rel)) {
-    const createTableStmts = content.match(/CREATE\s+TABLE/gi) || [];
-    if (createTableStmts.length) {
-      findings.push(
-        `[forbidden migration DDL] ${rel} issues CREATE TABLE; CP-00 migrations must add no tables`,
-      );
+    const createRe = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([\w]+)"?/gi;
+    let m;
+    while ((m = createRe.exec(content)) !== null) {
+      const table = m[1].toLowerCase();
+      if (table !== '_prisma_migrations' && !APPROVED_TABLES.has(table)) {
+        findings.push(
+          `[forbidden migration DDL] ${rel} creates "${table}"; CLP-00-05 allows only ` +
+            `${[...APPROVED_TABLES].join(', ')}`,
+        );
+      }
     }
   }
 }
