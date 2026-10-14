@@ -3,8 +3,9 @@ import {
   isPublicSpaKey,
   publicSpaConfig,
   SPA_PUBLIC_KEYS,
-} from '../src/config/spa-config';
-import { SECRET_KEYS } from '../src/config/config.schema';
+} from '../../src/config/spa-config';
+import { SECRET_KEYS } from '../../src/config/config.schema';
+import { makePublicSpaEnv, SYNTHETIC_SERVER_CONFIG } from '../support/factories';
 
 /**
  * Public SPA key allowlist tests (CLP-00-03).
@@ -16,12 +17,12 @@ import { SECRET_KEYS } from '../src/config/config.schema';
 describe('SPA public config allowlist', () => {
   it('exposes only the documented public keys', () => {
     const projected = publicSpaConfig({
-      VITE_API_BASE_URL: 'http://localhost:3000',
+      ...makePublicSpaEnv('http://localhost:3000'),
       // Server-only values that MUST NOT cross the boundary:
-      POSTGRES_PASSWORD: 'synthetic-db-password-value',
-      SESSION_SECRET: 'synthetic-session-secret-value',
-      CSRF_SECRET: 'synthetic-csrf-secret-value',
-      POSTGRES_HOST: 'localhost',
+      POSTGRES_PASSWORD: SYNTHETIC_SERVER_CONFIG.POSTGRES_PASSWORD,
+      SESSION_SECRET: SYNTHETIC_SERVER_CONFIG.SESSION_SECRET,
+      CSRF_SECRET: SYNTHETIC_SERVER_CONFIG.CSRF_SECRET,
+      POSTGRES_HOST: SYNTHETIC_SERVER_CONFIG.POSTGRES_HOST,
     });
 
     expect(Object.keys(projected)).toEqual(['VITE_API_BASE_URL']);

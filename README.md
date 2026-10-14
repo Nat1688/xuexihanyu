@@ -43,6 +43,9 @@ chinese-learning-foundation/
 │   │           ├── reporting/        # EMPTY placeholder
 │   │           └── ai/               # EMPTY placeholder (CP-07+)
 │   └── web/                      # React 19 + Vite 6 SPA (TypeScript)
+├── apps/api/test/                # unit + API tests (see docs/Testing/TEST-HARNESS.md)
+│   ├── protected/                # *.spec.ts (unit) + *.e2e-spec.ts (API, no DB)
+│   └── support/                  # shared harness: factories + Nest lifecycle helper
 ├── compose.yaml                  # local PostgreSQL dev/test topology (declarations only)
 ├── .env.example                  # environment variable NAMES only
 └── package.json                  # npm workspaces root
@@ -62,16 +65,16 @@ cp .env.example .env        # Windows: copy .env.example .env
 
 ## Commands (run from the repository root)
 
-| Command                | Purpose                                                       |
-| ---------------------- | ------------------------------------------------------------- |
-| `npm install`          | Install all workspace dependencies                            |
-| `npm run format`       | Format sources with Prettier                                  |
-| `npm run format:check` | Verify formatting (CI-style)                                  |
-| `npm run lint`         | ESLint over API and SPA (0 warnings tolerated)                |
-| `npm run typecheck`    | TypeScript typecheck (no emit) for both apps                  |
-| `npm run build`        | Build the API (`nest build`) and SPA (`vite build`)           |
-| `npm test`             | Run automated tests (API health smoke test; SPA has none yet) |
-| `npm run verify`       | format:check + lint + typecheck + build                       |
+| Command                | Purpose                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| `npm install`          | Install all workspace dependencies                                 |
+| `npm run format`       | Format sources with Prettier                                       |
+| `npm run format:check` | Verify formatting (CI-style)                                       |
+| `npm run lint`         | ESLint over API and SPA (0 warnings tolerated)                     |
+| `npm run typecheck`    | TypeScript typecheck (no emit) for both apps                       |
+| `npm run build`        | Build the API (`nest build`) and SPA (`vite build`)                |
+| `npm test`             | Run automated tests (API unit + API integration; SPA has none yet) |
+| `npm run verify`       | format:check + lint + typecheck + build                            |
 
 ### Run the API
 
@@ -116,14 +119,14 @@ exits non-zero — no config dump, no secret value.
 
 ### Key classification
 
-| Key                                             | Class                              |
-| ----------------------------------------------- | ---------------------------------- |
-| `NODE_ENV`, `API_PORT`, `SPA_ORIGIN`            | server-required                    |
-| `POSTGRES_HOST/PORT/DB/USER`                    | server-required                    |
-| `POSTGRES_PASSWORD`                             | server-required, **secret**        |
-| `SESSION_SECRET`, `CSRF_SECRET`                 | server-required, **secret**        |
-| `SESSION_TTL_MINUTES`                           | server-required                    |
-| `VITE_API_BASE_URL`                             | **SPA-public** (bundled in browser) |
+| Key                                  | Class                               |
+| ------------------------------------ | ----------------------------------- |
+| `NODE_ENV`, `API_PORT`, `SPA_ORIGIN` | server-required                     |
+| `POSTGRES_HOST/PORT/DB/USER`         | server-required                     |
+| `POSTGRES_PASSWORD`                  | server-required, **secret**         |
+| `SESSION_SECRET`, `CSRF_SECRET`      | server-required, **secret**         |
+| `SESSION_TTL_MINUTES`                | server-required                     |
+| `VITE_API_BASE_URL`                  | **SPA-public** (bundled in browser) |
 
 Validation rules: `API_PORT`/`POSTGRES_PORT` are integers in `1..65535`; `NODE_ENV` must be
 one of `development|test|production`; `SPA_ORIGIN` must be an absolute `http`/`https` origin
@@ -142,6 +145,25 @@ public config only via `apps/web/src/config/public-config.ts` (`getPublicConfig(
 Any new configuration key must be **classified** (server-required / server-optional /
 SPA-public) and added here by an amendment to the CLP-00-03 contract. A `VITE_` key may never
 carry database, password, session, CSRF, token, secret or credential data.
+
+## Testing (CLP-00-08A)
+
+Tests are split by layer and kept **non-database** in CP-00:
+
+| Layer           | Suffix         | Location                   | Nest? | PostgreSQL? |
+| --------------- | -------------- | -------------------------- | ----- | ----------- |
+| Unit            | `.spec.ts`     | `apps/api/test/protected/` | No    | No          |
+| API/integration | `.e2e-spec.ts` | `apps/api/test/protected/` | Yes   | No          |
+| Database        | _(deferred)_   | `apps/api/test/db/`        | Yes   | CLP-00-04   |
+
+- `apps/api/test/support/factories.ts` — **synthetic** env/config factories
+  (`makeEnv`, `makeEnvMissing`, `syntheticSecretValue`). Deterministic, isolated,
+  no real credentials or personal data.
+- `apps/api/test/support/test-app.ts` — Nest lifecycle helper
+  (`createTestApp`, `withTestApp`) that **always closes** the application.
+
+Full conventions: **[`docs/Testing/TEST-HARNESS.md`](docs/Testing/TEST-HARNESS.md)**.
+Database integration fixtures are **deferred/blocked by CLP-00-04** (ADR-002).
 
 ## Local PostgreSQL (Docker Compose)
 

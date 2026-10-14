@@ -1,10 +1,12 @@
-import { ConfigError, loadServerConfig, redactServerConfig } from '../src/config/config.loader';
-import { SECRET_KEYS } from '../src/config/config.schema';
+import { ConfigError, loadServerConfig, redactServerConfig } from '../../src/config/config.loader';
+import { SECRET_KEYS } from '../../src/config/config.schema';
+import { makeEnv, makeEnvMissing, SYNTHETIC_SERVER_CONFIG } from '../support/factories';
 
 /**
  * Config boundary tests (CLP-00-03).
  *
- * Fixtures use SYNTHETIC values only. No real secret ever appears.
+ * Fixtures use SYNTHETIC values only (see `test/support/factories.ts`).
+ * No real secret ever appears.
  * Required coverage (task contract):
  *   - valid config parse;
  *   - missing API/runtime config failure;
@@ -13,24 +15,21 @@ import { SECRET_KEYS } from '../src/config/config.schema';
  *   - secret field redaction / no value in thrown or logged error.
  */
 
-const VALID_ENV: Record<string, string> = {
-  NODE_ENV: 'development',
-  API_PORT: '3000',
-  SPA_ORIGIN: 'http://localhost:5173',
-  POSTGRES_HOST: 'localhost',
-  POSTGRES_PORT: '5432',
-  POSTGRES_DB: 'clp_dev',
-  POSTGRES_USER: 'clp_user',
-  POSTGRES_PASSWORD: 'synthetic-db-password-value',
-  SESSION_SECRET: 'synthetic-session-secret-value',
-  SESSION_TTL_MINUTES: '60',
-  CSRF_SECRET: 'synthetic-csrf-secret-value',
-};
+const VALID_ENV: Record<string, string> = { ...SYNTHETIC_SERVER_CONFIG, NODE_ENV: 'development' };
 
 function withEnv(
   overrides: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
-  return { ...VALID_ENV, ...overrides };
+  // Default the environment to 'development' unless the test explicitly
+  // overrides it (including an explicit `undefined` that simulates an unset
+  // variable). `makeEnv` starts from the synthetic base and applies overrides.
+  const base: Record<string, string | undefined> = {
+    ...VALID_ENV,
+    ...(Object.prototype.hasOwnProperty.call(overrides, 'NODE_ENV')
+      ? {}
+      : { NODE_ENV: 'development' }),
+  };
+  return makeEnv({ overrides: { ...base, ...overrides } });
 }
 
 describe('loadServerConfig — valid', () => {
@@ -77,7 +76,7 @@ describe('loadServerConfig — missing runtime config', () => {
   });
 
   it('fails when NODE_ENV is absent', () => {
-    expect(() => loadServerConfig(withEnv({ NODE_ENV: undefined }))).toThrow(ConfigError);
+    expect(() => loadServerConfig(makeEnvMissing('NODE_ENV'))).toThrow(ConfigError);
   });
 
   it('fails when a required secret key is empty', () => {

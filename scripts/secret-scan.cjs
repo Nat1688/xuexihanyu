@@ -33,9 +33,11 @@ const ALLOWLIST_FILES = new Set(['.env.example', 'compose.yaml']);
 // checks them for high-signal patterns (keys, tokens) — only the generic
 // "hardcoded secret assignment" heuristic is relaxed.
 const ALLOWLIST_TEST_FILES = new Set([
-  'apps/api/test/config.spec.ts',
-  'apps/api/test/spa-config.spec.ts',
-  'apps/api/test/health.e2e-spec.ts',
+  'apps/api/test/protected/config.spec.ts',
+  'apps/api/test/protected/spa-config.spec.ts',
+  'apps/api/test/protected/health.e2e-spec.ts',
+  'apps/api/test/protected/test-harness.spec.ts',
+  'apps/api/test/support/factories.ts',
 ]);
 
 // Forbidden CP-01+ artifacts (should not exist in this skeleton).
