@@ -60,7 +60,7 @@ function listTables(url) {
     "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by table_name;";
   const res = spawnSync(psql, [conn, '-tAc', sql], { encoding: 'utf8' });
   if (res.error || res.status !== 0) return null;
-  return res.stdout.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean);
+  return res.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 }
 
 function main() {
