@@ -1,36 +1,28 @@
 # CLP-00-04 Infrastructure Status
 
 **Date:** 2026-10-14  
-**Status:** Blocked before role/database provisioning.
+**Status:** PostgreSQL host provisioning and CLP dev/test database isolation completed; schema/migration remains out of scope.
 
 ## Confirmed host state
 
 - PostgreSQL 17.11 client tools are installed.
-- Windows service `postgresql-x64-17` is running.
-- `pg_isready -h 127.0.0.1 -p 5432` reports that the server accepts connections.
-- Host-managed PostgreSQL path is accepted in ADR-002A.
+- Windows service `postgresql-x64-17` is running on `127.0.0.1:5432`.
+- Local administrator authentication was recovered using a temporary loopback-only trust rule; original SCRAM rules were restored and verified.
+- `clp_app` is a non-superuser, non-createdb, non-createrole application role.
+- `clp_dev` and `clp_test` are separate non-production databases.
+- Connectivity as `clp_app` to both databases is verified; each has zero non-system tables.
 
-## Not yet created
+## Local credential handling
 
-- No `clp_app` role.
-- No `clp_dev` or `clp_test` database.
-- No `.env` credential file.
-- No Prisma schema, migration, table or seed data.
+- Application connection variables are stored in project `.env`, which is git-ignored and ACL-restricted to the current Windows user.
+- Local psql credentials are stored in `%APPDATA%\postgresql\pgpass.conf`, ACL-restricted to the current Windows user.
+- No secret is committed to Git, emitted in project docs, or exposed in chat.
 
-## Blocker
+## Still not created
 
-The PostgreSQL superuser password is unknown after silent installation. Password recovery requires a controlled temporary local authentication change plus restart of `postgresql-x64-17`. Gateway policy currently lacks permission to restart that Windows service.
+- No Prisma schema, migration, table, seed data, login/RBAC endpoint, or application database connection code.
+- CLP-00-04 implementation requires a separate Owner-approved task contract.
 
-`pg_hba.conf` was restored from backup after the unsuccessful recovery attempt. No temporary `trust` rule remains.
+## Required verification
 
-A later non-restart recovery probe also failed: `pg_ctl reload -D "C:\\Program Files\\PostgreSQL\\17\\data"` returned `Operation not permitted`. The current agent context cannot reload or restart the Windows PostgreSQL service, so no password recovery action was performed.
-
-## Required next gate
-
-One of the following must happen before CLP-00-04 implementation:
-
-1. Grant the agent an approved elevated capability that can restart the PostgreSQL Windows service, then run the documented recovery procedure; or
-2. An owner/administrator resets the local `postgres` password and provides a secure non-chat credential-entry path; or
-3. Replace the host-managed local database decision with another Owner-approved orchestration path.
-
-After admin access is available, Năm must obtain explicit approval for exact `clp_app`, `clp_dev`, `clp_test` provisioning and the secret storage method before creating any database objects.
+Before CLP-00-04 can start, Năm must verify clp_app connectivity and isolation, that no user tables exist, and that test-reset tooling can reject non-test database names.
