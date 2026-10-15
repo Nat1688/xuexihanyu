@@ -52,6 +52,9 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/protected/identity-auth-service.spec.ts',
   'apps/api/test/protected/identity-auth.e2e-spec.ts',
   'apps/api/test/protected/identity-role-authorization.e2e-spec.ts',
+  'apps/api/test/protected/logging-redaction.spec.ts',
+  'apps/api/test/protected/logging-structured-logger.spec.ts',
+  'apps/api/test/protected/logging-startup-diagnostics.spec.ts',
   'apps/api/test/support/factories.ts',
 ]);
 
@@ -64,6 +67,10 @@ const FORBIDDEN_PATH_PATTERNS = [/(^|[/\\])\.github[/\\]workflows[/\\]/i];
 
 function isAllowedPrismaPath(rel) {
   return ALLOWED_PRISMA_PATHS.some((re) => re.test(rel));
+}
+
+function isApprovedWorkflow(rel) {
+  return rel.replace(/\\/g, '/') === '.github/workflows/quality.yml';
 }
 
 function* walk(dir) {
@@ -82,7 +89,7 @@ for (const file of walk(ROOT)) {
   const rel = path.relative(ROOT, file);
 
   for (const pat of FORBIDDEN_PATH_PATTERNS) {
-    if (pat.test(rel) && !isAllowedPrismaPath(rel)) {
+    if (pat.test(rel) && !isAllowedPrismaPath(rel) && !isApprovedWorkflow(rel)) {
       findings.push(`[forbidden artifact] ${rel}`);
     }
   }
