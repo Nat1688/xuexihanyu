@@ -16,4 +16,8 @@ Owner/Năm must choose one:
 1. Retry DeepSeek later after provider recovers; or
 2. Delegate the approved CLP-00-06 contract to a fallback coding provider/agent, with the same scope and review gate.
 
+## Fallback attempt
+
+A local Codex CLI fallback was attempted. It failed before code changes because the configured `gpt-6.1-sol` model is not supported by the available Codex harness. No CLP-00-06 files, migrations, tables or commits were created by this fallback attempt.
+
 Do not weaken the task contract or begin manual partial authentication changes while the implementation provider is unavailable.
