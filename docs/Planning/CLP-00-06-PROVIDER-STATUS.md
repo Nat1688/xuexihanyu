@@ -6,7 +6,8 @@ CLP-00-06 Authentication & Session contract is accepted, but implementation is b
 
 - Attempt 1 failed with HTTP 503 while reading project files.
 - Retry timed out while reading Identity files.
-- No CLP-00-06 migration, source change, commit, database table, or session/auth endpoint was created by either failed run.
+- Final controlled retry timed out during configuration/session planning; no completion report or commit was produced.
+- No CLP-00-06 migration, source change, commit, database table, or session/auth endpoint was created by any failed run.
 
 ## Next decision
 
