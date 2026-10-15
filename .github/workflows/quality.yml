@@ -1,0 +1,50 @@
+name: quality
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: clp_ci
+          POSTGRES_PASSWORD: clp_ci_synthetic_only
+          POSTGRES_DB: clp_dev
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U clp_ci -d clp_dev"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      NODE_ENV: test
+      API_PORT: '3000'
+      SPA_ORIGIN: http://localhost:5173
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: clp_dev
+      POSTGRES_USER: clp_ci
+      POSTGRES_PASSWORD: clp_ci_synthetic_only
+      SESSION_SECRET: ci_synthetic_session_secret_only
+      SESSION_TTL_MINUTES: '60'
+      CSRF_SECRET: ci_synthetic_csrf_secret_only
+      DATABASE_URL: postgresql://clp_ci:clp_ci_synthetic_only@127.0.0.1:5432/clp_dev
+      TEST_DATABASE_URL: postgresql://clp_ci:clp_ci_synthetic_only@127.0.0.1:5432/clp_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: node scripts/db/db-migrate.cjs deploy
+      - run: node scripts/db/db-test-validate.cjs
+      - run: node scripts/secret-scan.cjs
