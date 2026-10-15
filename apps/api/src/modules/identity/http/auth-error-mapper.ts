@@ -14,6 +14,7 @@
 import {
   AuthenticationFailedError,
   CsrfInvalidError,
+  ForbiddenError,
   INVALID_CREDENTIALS_CODE,
   INVALID_CREDENTIALS_MESSAGE,
   LoginRateLimitedError,
@@ -56,6 +57,12 @@ export function mapAuthError(error: unknown, requestId?: string): MappedAuthErro
     };
   }
   if (error instanceof CsrfInvalidError) {
+    return {
+      status: 403,
+      body: { error: withId(error.code, error.message, requestId) },
+    };
+  }
+  if (error instanceof ForbiddenError) {
     return {
       status: 403,
       body: { error: withId(error.code, error.message, requestId) },

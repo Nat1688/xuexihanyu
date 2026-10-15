@@ -51,6 +51,7 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/protected/test-harness.spec.ts',
   'apps/api/test/protected/identity-auth-service.spec.ts',
   'apps/api/test/protected/identity-auth.e2e-spec.ts',
+  'apps/api/test/protected/identity-role-authorization.e2e-spec.ts',
   'apps/api/test/support/factories.ts',
 ]);
 

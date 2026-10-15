@@ -19,6 +19,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Injectable } from
 import {
   AuthenticationFailedError,
   CsrfInvalidError,
+  ForbiddenError,
   LoginRateLimitedError,
   UnauthenticatedError,
 } from '../application/auth-errors';
@@ -32,7 +33,13 @@ function requestIdOf(req: HttpRequest | undefined): string | undefined {
   return typeof value === 'string' && value.length > 0 && value.length <= 128 ? value : undefined;
 }
 
-@Catch(UnauthenticatedError, CsrfInvalidError, AuthenticationFailedError, LoginRateLimitedError)
+@Catch(
+  UnauthenticatedError,
+  CsrfInvalidError,
+  AuthenticationFailedError,
+  LoginRateLimitedError,
+  ForbiddenError,
+)
 @Injectable()
 export class AuthExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {

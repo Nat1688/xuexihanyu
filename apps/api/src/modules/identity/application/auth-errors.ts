@@ -37,6 +37,15 @@ export const UNAUTHENTICATED_CODE = 'AUTH_REQUIRED';
 export const UNAUTHENTICATED_MESSAGE = 'Authentication required.';
 
 /**
+ * External code for an authenticated caller lacking the required role
+ * (CLP-00-07). Distinct from a missing session: authentication succeeded.
+ */
+export const FORBIDDEN_CODE = 'AUTH_FORBIDDEN';
+
+/** Fixed, safe message for an insufficient-role request. */
+export const FORBIDDEN_MESSAGE = 'Insufficient privileges.';
+
+/**
  * Internal, server-only reason for a login failure. Used to categorise logs
  * (never exposed to the client). Kept deliberately coarse.
  */
@@ -83,5 +92,19 @@ export class UnauthenticatedError extends Error {
   constructor() {
     super(UNAUTHENTICATED_MESSAGE);
     this.name = 'UnauthenticatedError';
+  }
+}
+
+/**
+ * Raised when an AUTHENTICATED caller lacks the role a route requires
+ * (CLP-00-07). Kept distinct from {@link UnauthenticatedError}: the client is
+ * authenticated but not authorized. The external body reveals neither the
+ * caller's roles nor which role was required.
+ */
+export class ForbiddenError extends Error {
+  readonly code = FORBIDDEN_CODE;
+  constructor() {
+    super(FORBIDDEN_MESSAGE);
+    this.name = 'ForbiddenError';
   }
 }

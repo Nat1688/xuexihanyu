@@ -12,6 +12,8 @@ import { ScryptPasswordHasher } from './infrastructure/scrypt-password-hasher';
 import { AUTH_CONTROLLER_OPTIONS, AuthController } from './http/auth.controller';
 import { AuthExceptionFilter } from './http/auth-exception.filter';
 import { AuthGuard } from './http/auth.guard';
+import { Cp00AuthorizationController } from './http/cp00-authorization.controller';
+import { RoleGuard } from './http/role.guard';
 
 /**
  * Identity boundary (ADR-001, ADR-003, ADR-004).
@@ -26,14 +28,23 @@ import { AuthGuard } from './http/auth.guard';
  *                       cookie policy.
  *   - `infrastructure/`  scrypt hasher + Prisma-backed identity/session stores.
  *   - `http/`            `AuthController` (login/logout/me/session) + `AuthGuard`
- *                       (AUTHENTICATION ONLY).
+ *                       (AUTHENTICATION ONLY) + CLP-00-07 `RoleGuard` /
+ *                       `@RequireRoles` authorization and the representative
+ *                       CP-00 authorization routes.
  *
- * Still DELIBERATELY ABSENT (later approved tasks): RBAC role guards/policy and
- * ADMIN/TEACHER/STUDENT authorization (CLP-00-07); profiles/classes/enrollment;
- * password reset/SSO/registration; production cookie-domain/TLS config.
+ * CLP-00-07 adds server-side ROLE AUTHORIZATION on top of authentication: the
+ * `RoleGuard` (layered after `AuthGuard`) enforces a `@RequireRoles(...)`
+ * declaration against the principal's CURRENT server-side role membership — no
+ * session role snapshot is stored, and caller roles are re-resolved per request.
+ * Role mutation, object/ownership policy and any domain table are deliberately
+ * OUT of scope here.
+ *
+ * Still DELIBERATELY ABSENT (later approved tasks): role mutation API/UI,
+ * profiles/classes/enrollment/ownership; password reset/SSO/registration;
+ * production cookie-domain/TLS config.
  */
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, Cp00AuthorizationController],
   providers: [
     // Hashing boundary (CLP-00-05) — reused for password verification.
     { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },
@@ -69,6 +80,8 @@ import { AuthGuard } from './http/auth.guard';
     },
     // HTTP: guard + controller options (cookie policy by environment/TTL).
     AuthGuard,
+    // CLP-00-07 role authorization guard (layered AFTER AuthGuard on routes).
+    RoleGuard,
     // Maps the guard's application-level auth errors (thrown OUTSIDE the
     // controller's try/catch) to the ADR-005 401/403/429 bodies. Without this
     // the guard's UnauthenticatedError would surface as a generic 500.
@@ -82,6 +95,6 @@ import { AuthGuard } from './http/auth.guard';
       inject: [SERVER_CONFIG],
     },
   ],
-  exports: [AuthService, AuthGuard, LoginRateLimiter],
+  exports: [AuthService, AuthGuard, LoginRateLimiter, RoleGuard],
 })
 export class IdentityModule {}

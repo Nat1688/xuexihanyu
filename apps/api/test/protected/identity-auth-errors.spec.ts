@@ -12,6 +12,9 @@
 import {
   AuthenticationFailedError,
   CsrfInvalidError,
+  FORBIDDEN_CODE,
+  FORBIDDEN_MESSAGE,
+  ForbiddenError,
   INVALID_CREDENTIALS_CODE,
   INVALID_CREDENTIALS_MESSAGE,
   LoginRateLimitedError,
@@ -57,6 +60,13 @@ describe('auth error mapping (uniform, non-enumerating)', () => {
     expect(mapAuthError(new CsrfInvalidError())).toEqual({
       status: 403,
       body: { error: { code: 'AUTH_CSRF_INVALID', message: 'Request could not be verified.' } },
+    });
+  });
+
+  it('maps an insufficient-role failure to 403 AUTH_FORBIDDEN (authenticated, not authorized)', () => {
+    expect(mapAuthError(new ForbiddenError())).toEqual({
+      status: 403,
+      body: { error: { code: FORBIDDEN_CODE, message: FORBIDDEN_MESSAGE } },
     });
   });
 
