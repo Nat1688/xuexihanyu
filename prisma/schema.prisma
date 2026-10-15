@@ -1,16 +1,17 @@
-// Prisma schema — CLP-00-05 Identity Domain.
+// Prisma schema — CLP-00-05 Identity Domain + CLP-00-06 Session Lifecycle.
 //
-// SCOPE: the three APPROVED identity tables ONLY (ADR-004, CLP-00-05):
-//   - users                (stable public UUID, normalized unique login, state)
-//   - password_credentials (1:1 user, memory-hard hash + algorithm metadata)
-//   - user_roles           (membership constrained to ADMIN/TEACHER/STUDENT)
+// SCOPE: the APPROVED identity + session tables ONLY:
+//   - users                (stable public UUID, normalized unique login, state)   [CLP-00-05]
+//   - password_credentials (1:1 user, memory-hard hash + algorithm metadata)       [CLP-00-05]
+//   - user_roles           (membership constrained to ADMIN/TEACHER/STUDENT)        [CLP-00-05]
+//   - sessions             (opaque server-side session; ADR-003, CLP-00-06)
 //
-// This supersedes the CLP-00-04 "no models" foundation (that contract's scope
-// was the migration foundation only). The later CP-00 identity task explicitly
-// authorizes exactly these three models and NOTHING else. Still FORBIDDEN here
-// (CLP-00-05 "Forbidden"): session/login/current-user tables, profile/class/
-// enrollment, teacher/student relationship, content/exercise/learning-event/
-// mastery/reporting/AI tables, seed/bootstrap rows.
+// CLP-00-05 superseded the CLP-00-04 "no models" foundation for the three
+// identity models; CLP-00-06 adds exactly ONE further table, `sessions`, per the
+// accepted CLP-00-06 task contract + ADR-003. Still FORBIDDEN here: profile/
+// class/enrollment, teacher/student relationship, content/exercise/learning-event/
+// mastery/reporting/AI tables, session permission/role snapshots, seed/bootstrap
+// rows.
 //
 // The connection URL is read from the environment variable named by
 // `datasource.url`; it is NEVER committed. Development uses `DATABASE_URL`;
@@ -63,6 +64,7 @@ model User {
 
   credential      PasswordCredential?
   roles           UserRoleAssignment[]
+  sessions        Session[]
 
   @@map("users")
 }
@@ -99,4 +101,32 @@ model UserRoleAssignment {
 
   @@id([userId, role])
   @@map("user_roles")
+}
+
+// ---------------------------------------------------------------------------
+// sessions — opaque SERVER-SIDE session (ADR-003; CLP-00-06).
+//
+// The browser holds only an opaque random token in an HttpOnly cookie. The
+// token itself is NEVER persisted: only its SHA-256 hash is stored, in
+// `token_hash` (UNIQUE), so a database read cannot reconstruct a usable cookie.
+// `user_id` is the owning identity; `created_at`/`last_used_at` support
+// rotation/observability, `expires_at` bounds lifetime and `revoked_at` marks
+// explicit logout/invalidation. No permission/role snapshot is stored — role
+// authorization is CLP-00-07 and is always resolved server-side from
+// `user_roles`, never from a session copy.
+// ---------------------------------------------------------------------------
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(128)
+  csrfHash   String    @map("csrf_hash") @db.VarChar(128)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }

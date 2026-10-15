@@ -31,6 +31,19 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule);
 
+  // Credentialed CORS for the explicit SPA origin ONLY (ADR-003). No `*`, no
+  // origin reflection, minimal methods/headers; the SPA origin is typed config
+  // that fails closed if absent/invalid. Credentials are enabled so the browser
+  // sends/receives the session cookie. This is not a CSRF control by itself —
+  // state-changing routes ALSO require the double-submit CSRF proof.
+  app.enableCors({
+    origin: [config.SPA_ORIGIN],
+    credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-Id'],
+    maxAge: 600,
+  });
+
   await app.listen(config.API_PORT);
 
   // Safe startup diagnostic: no config dump, no credentials, no topology.

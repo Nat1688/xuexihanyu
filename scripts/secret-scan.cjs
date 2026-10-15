@@ -37,8 +37,8 @@ const ALLOWED_PRISMA_PATHS = [
 // CLP-00-05: identity schema is authorized, but ONLY the three ADR-004 models
 // and their three tables. Any other model/table means a later-checkpoint or
 // forbidden schema leaked in.
-const APPROVED_MODELS = new Set(['User', 'PasswordCredential', 'UserRoleAssignment']);
-const APPROVED_TABLES = new Set(['users', 'password_credentials', 'user_roles']);
+const APPROVED_MODELS = new Set(['User', 'PasswordCredential', 'UserRoleAssignment', 'Session']);
+const APPROVED_TABLES = new Set(['users', 'password_credentials', 'user_roles', 'sessions']);
 
 // Test files that intentionally contain SYNTHETIC fixtures for the config
 // boundary (CLP-00-03). These must never hold real values; the scanner still
@@ -49,6 +49,8 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/protected/spa-config.spec.ts',
   'apps/api/test/protected/health.e2e-spec.ts',
   'apps/api/test/protected/test-harness.spec.ts',
+  'apps/api/test/protected/identity-auth-service.spec.ts',
+  'apps/api/test/protected/identity-auth.e2e-spec.ts',
   'apps/api/test/support/factories.ts',
 ]);
 

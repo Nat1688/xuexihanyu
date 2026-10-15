@@ -18,6 +18,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
+import { SYNTHETIC_SERVER_CONFIG } from './factories';
 
 /** Supertest agent type, inferred from the default export. */
 export type SupertestAgent = ReturnType<typeof request>;
@@ -53,7 +54,21 @@ export interface TestAppContext {
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestAppContext> {
   const { metadata = { imports: [AppModule] }, useHttpServer = false } = options;
 
-  const moduleRef: TestingModule = await Test.createTestingModule(metadata).compile();
+  // The real AppModule validates process.env at compile time. Supply only
+  // synthetic test values and restore the caller environment immediately.
+  const previous = Object.fromEntries(
+    Object.keys(SYNTHETIC_SERVER_CONFIG).map((key) => [key, process.env[key]]),
+  );
+  Object.assign(process.env, SYNTHETIC_SERVER_CONFIG);
+  let moduleRef: TestingModule;
+  try {
+    moduleRef = await Test.createTestingModule(metadata).compile();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 
   const app = moduleRef.createNestApplication();
   try {

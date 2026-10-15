@@ -24,10 +24,10 @@ const SCHEMA_PATH = path.join(REPO_ROOT, 'prisma', 'schema.prisma');
 const MIGRATIONS_DIR = path.join(REPO_ROOT, 'prisma', 'migrations');
 
 /** The three approved Prisma model names (CLP-00-05). */
-const APPROVED_MODELS = ['User', 'PasswordCredential', 'UserRoleAssignment'];
+const APPROVED_MODELS = ['User', 'PasswordCredential', 'UserRoleAssignment', 'Session'];
 
 /** The three approved physical table names (CLP-00-05). */
-const APPROVED_TABLES = ['users', 'password_credentials', 'user_roles'];
+const APPROVED_TABLES = ['users', 'password_credentials', 'user_roles', 'sessions'];
 
 /** The only tables a CP-00 migration may create, plus Prisma metadata. */
 const ALLOWED_CREATED_TABLES = new Set([...APPROVED_TABLES, '_prisma_migrations']);
@@ -112,7 +112,7 @@ describe('prisma identity schema', () => {
       const sqlPath = path.join(MIGRATIONS_DIR, dir, 'migration.sql');
       if (!fs.existsSync(sqlPath)) continue;
       const sql = fs.readFileSync(sqlPath, 'utf8').toLowerCase();
-      for (const forbidden of ['sessions', 'session', 'classes', 'profiles', 'enrollments']) {
+      for (const forbidden of ['classes', 'profiles', 'enrollments']) {
         expect(createdTables(sql).map((t) => t.toLowerCase())).not.toContain(forbidden);
       }
     }
