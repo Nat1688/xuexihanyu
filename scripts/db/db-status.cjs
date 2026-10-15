@@ -32,7 +32,12 @@ function statusFor(which) {
   }
 
   process.stdout.write(`\n=== ${label} database ===\ntarget: ${safeTarget(raw)}\n`);
-  const prismaBin = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+  const prismaBin = path.join(
+    REPO_ROOT,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
+  );
   const res = spawnSync(prismaBin, ['migrate', 'status', '--schema', 'prisma/schema.prisma'], {
     cwd: REPO_ROOT,
     stdio: 'inherit',

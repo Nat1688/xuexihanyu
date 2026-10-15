@@ -105,14 +105,19 @@ function main() {
 
   // Allowed real reset: run prisma migrate reset against the test URL only.
   process.stdout.write('[db-reset-guard] confirmed: resetting the isolated test database…\n');
-  const prismaBin = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+  const prismaBin = path.join(
+    REPO_ROOT,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
+  );
   const res = spawnSync(
     prismaBin,
     ['migrate', 'reset', '--force', '--skip-seed', '--schema', 'prisma/schema.prisma'],
     {
       cwd: REPO_ROOT,
       stdio: 'inherit',
-    shell: process.platform === 'win32',
+      shell: process.platform === 'win32',
       env: { ...process.env, DATABASE_URL: raw },
     },
   );

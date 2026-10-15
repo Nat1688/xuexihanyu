@@ -20,7 +20,12 @@ const { classifyUrl, safeTarget } = require('./db-url.cjs');
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 
 function runPrisma(args, url) {
-  const prismaBin = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+  const prismaBin = path.join(
+    REPO_ROOT,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
+  );
   return spawnSync(prismaBin, args, {
     cwd: REPO_ROOT,
     stdio: 'inherit',
