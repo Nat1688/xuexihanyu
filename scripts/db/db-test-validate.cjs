@@ -27,6 +27,7 @@ const APPROVED_TABLES = new Set([
   'users',
   'password_credentials',
   'user_roles',
+  'sessions',
 ]);
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 
