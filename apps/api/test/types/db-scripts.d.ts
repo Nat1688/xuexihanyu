@@ -54,3 +54,92 @@ declare module '*/db-reset-guard.cjs' {
   }
   export function parseArgs(argv: string[]): ResetGuardArgs;
 }
+
+declare module '*/seed-guard.cjs' {
+  export const SEEDABLE_DB_NAMES: readonly string[];
+  export const SYNTHETIC_LOGIN_DOMAIN: string;
+  export const BOOTSTRAP_LOGIN_ENV: string;
+  export const BOOTSTRAP_PASSWORD_ENV: string;
+  export const BOOTSTRAP_PASSWORD_ENV_FILE: string;
+
+  export function assertSeedable(
+    raw: string | undefined,
+  ):
+    | { allowed: true; target: string; info: unknown }
+    | { allowed: false; reason: string; target: string };
+
+  export function isSyntheticLogin(login: unknown): boolean;
+  export function syntheticLogin(local: string): string;
+
+  export function assertBootstrappable(input: {
+    url: string | undefined;
+    login: unknown;
+    password: unknown;
+    minPasswordLength?: number;
+  }):
+    | { allowed: true; target: string; login: string; info: unknown }
+    | { allowed: false; reason: string; target: string };
+
+  export function assertNoExistingAdmin(input: {
+    existingAdminCount: number;
+  }): { allowed: true } | { allowed: false; reason: string };
+}
+
+declare module '*/synthetic-fixtures.cjs' {
+  export const SYNTHETIC_SALT: string;
+  export const SYNTHETIC_FIXTURES: ReadonlyArray<{
+    key: string;
+    roles: string[];
+    state: string;
+  }>;
+  export function deriveSyntheticPassword(key: string): string;
+  export function resolveFixture(fixture: { key: string; roles: string[]; state: string }): {
+    key: string;
+    login: string;
+    roles: string[];
+    state: string;
+    password: string;
+  };
+  export function resolveAllFixtures(): Array<{
+    key: string;
+    login: string;
+    roles: string[];
+    state: string;
+    password: string;
+  }>;
+}
+
+declare module '*/scrypt-hash.cjs' {
+  export const SCRYPT_PARAMS: Readonly<{
+    N: number;
+    r: number;
+    p: number;
+    keylen: number;
+    saltLength: number;
+  }>;
+  export function hashPassword(
+    plain: string,
+    params?: { N?: number; r?: number; p?: number; keylen?: number; saltLength?: number },
+  ): string;
+  export function hashParameters(params?: {
+    N?: number;
+    r?: number;
+    p?: number;
+    keylen?: number;
+  }): { N: number; r: number; p: number; keylen: number };
+}
+
+declare module '*/db-seed-synthetic.cjs' {
+  export function parseArgs(argv: string[]): { env: string; dryRun: boolean };
+  export function ensureFixture(
+    prisma: unknown,
+    fixture: { key: string; login: string; roles: string[]; state: string; password: string },
+  ): Promise<{ key: string; action: string; userId: string }>;
+  export function main(): Promise<void>;
+}
+
+declare module '*/db-bootstrap-admin.cjs' {
+  export function parseArgs(argv: string[]): { env: string; dryRun: boolean };
+  export function loadSecret(): string | undefined;
+  export function main(): Promise<void>;
+}

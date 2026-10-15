@@ -59,9 +59,11 @@ chinese-learning-foundation/
 │   └── migrations/               # 0_init baseline + identity_domain migration
 ├── scripts/
 │   ├── db/                       # DB URL classification, guard, status, migrate, validate
+│   ├── seed/                     # CLP-00-11 synthetic seed + ADMIN bootstrap (guarded)
 │   └── secret-scan.cjs           # secret/artifact scan (also guards approved models/tables)
 ├── docs/Database/MIGRATIONS.md   # migration foundation guide
 ├── docs/Database/IDENTITY.md     # CLP-00-05 identity domain guide
+├── docs/Operations/SEED-BOOTSTRAP.md # CLP-00-11 seed/bootstrap guide
 ├── .env.example                  # environment variable NAMES only
 └── package.json                  # npm workspaces root
 ```
@@ -97,6 +99,10 @@ cp .env.example .env        # Windows: copy .env.example .env
 | `npm run db:migrate:deploy` | Apply pending migrations to `clp_dev`                         |
 | `npm run db:test:reset`| **Destructive** reset of `clp_test` only (guard-protected)         |
 | `npm run db:test:validate` | Zero→current validation of `clp_test`, asserts only approved tables |
+| `npm run seed:dev`     | Seed deterministic synthetic fixtures into `clp_dev` (guarded)     |
+| `npm run seed:test`    | Seed the same fixtures into `clp_test` (guarded)                   |
+| `npm run seed:dry-run` | Plan the seed without writing (`clp_dev`)                          |
+| `npm run bootstrap:admin` | Bootstrap the single initial ADMIN (operator-invoked; guarded)  |
 
 ### Run the API
 
@@ -211,6 +217,24 @@ The identity boundary implements the approved ADR-004 slice:
 No login/logout/current-user/session/cookie/CSRF behavior and no RBAC guard/controller exist
 here — those are CLP-00-06/07.
 
+## Seed & ADMIN bootstrap (CLP-00-11)
+
+Two **operator-invoked, guarded** commands populate identities. Neither runs automatically at
+startup, and neither seeds any domain content (no profile/class/enrollment/content/exercise).
+See [`docs/Operations/SEED-BOOTSTRAP.md`](docs/Operations/SEED-BOOTSTRAP.md) for the full guide.
+
+- **Synthetic seed** (`scripts/seed/db-seed-synthetic.cjs`) — deterministic fixtures used only
+  for local development/testing. Every login lives in the reserved `example.invalid` namespace,
+  roles/states come from the frozen fixture set, and password hashes are generated at runtime
+  (scrypt) — no credential is committed. It is **idempotent** (a rerun ensures only the named
+  fixtures) and **never overwrites** non-synthetic users.
+- **ADMIN bootstrap** (`scripts/seed/db-bootstrap-admin.cjs`) — creates the single initial
+  ADMIN from `CLP_BOOTSTRAP_ADMIN_LOGIN` + a secret read from the git-ignored local `.env`.
+  It **refuses** if any ADMIN membership already exists and never replaces an existing admin.
+
+Both refuse any target that is not a recognised **local** `clp_dev`/`clp_test` (bootstrap
+additionally refuses a non-local host). Run `npm run seed:test -- --dry-run` to preview.
+
 ## Database & migrations (CLP-00-04 + CLP-00-05)
 
 Migrations use **Prisma** (ADR-002) with an **append-only** history and no `db push`.
@@ -259,7 +283,11 @@ yet; those arrive in later approved tasks.
   roles; account state limited to approved values; only password hashes persisted;
 - table inventory contains only Prisma metadata plus the three approved identity tables;
 - no login/logout/current-user/session, no RBAC guard/controller, no profile/class/enrollment,
-  no learning-domain or AI schema/behavior, no seed/bootstrap admin;
+  no learning-domain or AI schema/behavior;
+- **CLP-00-11:** guarded synthetic seed (idempotent, `example.invalid`-only, no overwrite) and a
+  separate ADMIN bootstrap (refuses on existing admin / missing secret / unsafe target) exist as
+  explicit operator commands only — never auto-run, no committed credential, no domain-content
+  seed;
 - module boundaries exist with no CP-01+ behavior/schema.
 
 ## Known deferred decisions

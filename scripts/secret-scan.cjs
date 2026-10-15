@@ -56,6 +56,11 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/protected/logging-structured-logger.spec.ts',
   'apps/api/test/protected/logging-startup-diagnostics.spec.ts',
   'apps/api/test/support/factories.ts',
+  // CLP-00-11 synthetic seed/bootstrap fixtures — inert, non-namespace-reserved
+  // placeholders only (never real credentials).
+  'apps/api/test/protected/seed-guard.spec.ts',
+  'apps/api/test/db/synthetic-seed.int-spec.ts',
+  'apps/api/test/db/bootstrap-admin.int-spec.ts',
 ]);
 
 // Forbidden CP-01+ artifacts (should not exist in this skeleton).

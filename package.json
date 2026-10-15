@@ -29,6 +29,11 @@
     "db:test:reset": "node scripts/db/db-reset-guard.cjs --env test --yes",
     "db:test:reset:dry-run": "node scripts/db/db-reset-guard.cjs --env test --dry-run",
     "db:test:validate": "node scripts/db/db-test-validate.cjs",
+    "seed:dev": "node scripts/seed/db-seed-synthetic.cjs",
+    "seed:test": "node scripts/seed/db-seed-synthetic.cjs --env test",
+    "seed:dry-run": "node scripts/seed/db-seed-synthetic.cjs --dry-run",
+    "bootstrap:admin": "node scripts/seed/db-bootstrap-admin.cjs",
+    "bootstrap:admin:dry-run": "node scripts/seed/db-bootstrap-admin.cjs --dry-run",
     "secret-scan": "node scripts/secret-scan.cjs"
   },
   "devDependencies": {
