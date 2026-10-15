@@ -2,22 +2,19 @@
 
 **Date:** 2026-10-15
 
-CLP-00-06 Authentication & Session contract is accepted, but implementation is blocked before code changes due to DeepSeek provider availability.
+CLP-00-06 Authentication & Session contract is accepted, but implementation recovery is not yet synced to project root.
+
+## Prior failures
 
 - Attempt 1 failed with HTTP 503 while reading project files.
 - Retry timed out while reading Identity files.
 - Final controlled retry timed out during configuration/session planning; no completion report or commit was produced.
-- No CLP-00-06 migration, source change, commit, database table, or session/auth endpoint was created by any failed run.
+- Local Codex fallback failed before code changes because its configured `gpt-6.1-sol` model is unsupported by the available Codex harness.
 
-## Next decision
+## Latest health check
 
-Owner/Năm must choose one:
+A bounded DeepSeek health check was run with no file/tool access and returned `DEEPSEEK_READY` successfully. This proves the provider can return a short response, but does not itself validate long-running implementation reliability.
 
-1. Retry DeepSeek later after provider recovers; or
-2. Delegate the approved CLP-00-06 contract to a fallback coding provider/agent, with the same scope and review gate.
+## Current rule
 
-## Fallback attempt
-
-A local Codex CLI fallback was attempted. It failed before code changes because the configured `gpt-6.1-sol` model is not supported by the available Codex harness. No CLP-00-06 files, migrations, tables or commits were created by this fallback attempt.
-
-Do not weaken the task contract or begin manual partial authentication changes while the implementation provider is unavailable.
+Do not weaken the accepted CLP-00-06 contract or sync the partial candidate until migration, session security, host integration and full quality validation pass.
