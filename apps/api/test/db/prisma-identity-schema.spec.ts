@@ -1,9 +1,11 @@
 /**
- * Prisma schema invariants (CLP-00-05 identity + CLP-00-06 session + CP-01 content).
+ * Prisma schema invariants (CLP-00-05 identity + CLP-00-06 session + CP-01
+ * content + CP-03 learning events).
  *
  * CLP-00-04 shipped a model-free foundation; CLP-00-05 authorized EXACTLY three
  * identity models/tables (ADR-004); CLP-00-06 added exactly one session table;
- * and CP-01 adds exactly the approved content-domain models/tables:
+ * CP-01 adds exactly the approved content-domain models/tables; and CP-03 adds
+ * exactly ONE append-only learning-event model/table:
  *
  *   identity   : `User` -> `users`, `PasswordCredential` -> `password_credentials`,
  *                `UserRoleAssignment` -> `user_roles`
@@ -11,13 +13,15 @@
  *   content    : `Course` -> `courses`, `Unit` -> `units`, `Lesson` -> `lessons`,
  *                `LearningItem` -> `learning_items`,
  *                `LessonLearningItem` -> `lesson_learning_items`
+ *   events     : `LearningEvent` -> `learning_events`
  *
  * This guard asserts the schema declares the datasource + client generator and
  * EXACTLY those approved models and no others, and that every migration creates
- * only approved tables (no CP-02 exercise/answer/evaluation, CP-03 learning
- * event, CP-04 mastery/review, media/import-export/AI/analytics table may
- * appear). It is the structural gate that keeps each checkpoint from silently
- * growing into later-checkpoint or forbidden schema.
+ * only approved tables (no CP-02 exercise-instance/answer-persistence table, no
+ * CP-04 mastery/review, media/import-export/AI/analytics table may appear — the
+ * CP-02 exercise boundary is stateless/in-memory and owns no table). It is the
+ * structural gate that keeps each checkpoint from silently growing into
+ * later-checkpoint or forbidden schema.
  *
  * File-only: no database, no Prisma engine, no network.
  */
@@ -28,7 +32,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const SCHEMA_PATH = path.join(REPO_ROOT, 'prisma', 'schema.prisma');
 const MIGRATIONS_DIR = path.join(REPO_ROOT, 'prisma', 'migrations');
 
-/** The approved Prisma model names (CLP-00-05/06 + CP-01). */
+/** The approved Prisma model names (CLP-00-05/06 + CP-01 + CP-03). */
 const APPROVED_MODELS = [
   'User',
   'PasswordCredential',
@@ -39,9 +43,10 @@ const APPROVED_MODELS = [
   'Lesson',
   'LearningItem',
   'LessonLearningItem',
+  'LearningEvent',
 ];
 
-/** The approved physical table names (CLP-00-05/06 + CP-01). */
+/** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03). */
 const APPROVED_TABLES = [
   'users',
   'password_credentials',
@@ -52,10 +57,17 @@ const APPROVED_TABLES = [
   'lessons',
   'learning_items',
   'lesson_learning_items',
+  'learning_events',
 ];
 
-/** The approved enums (CLP-00-05/06 + CP-01). */
-const APPROVED_ENUMS = ['AccountState', 'UserRole', 'ContentVisibility', 'LearningItemKind'];
+/** The approved enums (CLP-00-05/06 + CP-01 + CP-03). */
+const APPROVED_ENUMS = [
+  'AccountState',
+  'UserRole',
+  'ContentVisibility',
+  'LearningItemKind',
+  'LearningEventType',
+];
 
 /** The only tables a migration may create, plus Prisma metadata. */
 const ALLOWED_CREATED_TABLES = new Set([...APPROVED_TABLES, '_prisma_migrations']);
@@ -100,7 +112,7 @@ describe('prisma identity schema', () => {
     expect(schema).toMatch(/url\s*=\s*env\("DATABASE_URL"\)/);
   });
 
-  it('declares EXACTLY the approved models and no others (CLP-00-05/06 + CP-01)', () => {
+  it('declares EXACTLY the approved models and no others (CLP-00-05/06 + CP-01 + CP-03)', () => {
     const models = modelNames(readSchema());
     expect([...models].sort()).toEqual([...APPROVED_MODELS].sort());
   });
@@ -141,8 +153,9 @@ describe('prisma identity schema', () => {
       if (!fs.existsSync(sqlPath)) continue;
       const sql = fs.readFileSync(sqlPath, 'utf8').toLowerCase();
       const created = createdTables(sql).map((t) => t.toLowerCase());
-      // Identity-adjacent, CP-02 exercise/answer/evaluation, CP-03 learning
-      // event, CP-04 mastery/review, and other forbidden subjects.
+      // Identity-adjacent, CP-02 exercise-instance/answer-persistence, CP-04
+      // mastery/review, and other forbidden subjects. (`learning_events` is now
+      // APPROVED under CP-03, so it is intentionally NOT listed here.)
       for (const forbidden of [
         'classes',
         'profiles',
@@ -151,7 +164,6 @@ describe('prisma identity schema', () => {
         'exercises',
         'answers',
         'evaluations',
-        'learning_events',
         'mastery',
         'reviews',
         'media',

@@ -21,9 +21,10 @@ import { ReportingModule } from './modules/reporting/reporting.module';
  * `ConfigModule` (CLP-00-03 typed config), `PrismaModule` (CLP-00-06 shared
  * client) and `FoundationLoggingModule` (CLP-00-10 request/correlation id).
  * `IdentityModule` provides identity/session/role authorization, and
- * `ContentModule` provides the CP-01 content domain. Domain modules beyond
- * identity/content/health remain EMPTY placeholders: they define a boundary but
- * contain no CP-02+ behavior, schema or persistence.
+ * `ContentModule` provides the CP-01 content domain, `ExerciseModule` the CP-02
+ * exercise boundary and `LearningEventsModule` the CP-03 append-only event
+ * foundation. Domain modules beyond those remain EMPTY placeholders: they
+ * define a boundary but contain no CP-04+ behavior, schema or persistence.
  */
 @Module({
   imports: [

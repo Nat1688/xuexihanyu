@@ -34,9 +34,9 @@ const ALLOWED_PRISMA_PATHS = [
   /(^|[/\\])prisma[/\\]migrations[/\\]/i,
 ];
 
-// CLP-00-05: identity schema is authorized, but ONLY the three ADR-004 models
-// and their three tables. Any other model/table means a later-checkpoint or
-// forbidden schema leaked in.
+// Approved schema: CLP-00-05/06 identity+session, CP-01 content, CP-03 learning
+// events. Any other model/table means a later-checkpoint or forbidden schema
+// leaked in.
 const APPROVED_MODELS = new Set([
   'User',
   'PasswordCredential',
@@ -47,15 +47,17 @@ const APPROVED_MODELS = new Set([
   'Lesson',
   'LearningItem',
   'LessonLearningItem',
+  'LearningEvent',
 ]);
-// Approved base tables (CLP-00-05/06 identity+session, CP-01 content) + Prisma
-// metadata.
+// Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
+// learning events) + Prisma metadata.
 const APPROVED_TABLES = new Set([
   '_prisma_migrations',
   'courses',
   'learning_items',
   'lesson_learning_items',
   'lessons',
+  'learning_events',
   'password_credentials',
   'sessions',
   'units',
@@ -88,9 +90,9 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/db/bootstrap-admin.int-spec.ts',
 ]);
 
-// Forbidden CP-01+ artifacts (should not exist in this skeleton).
+// Forbidden CP-04+ artifacts (should not exist in this skeleton).
 // NOTE: `prisma/` + `schema.prisma` + `migrations/` are permitted for the
-// CLP-00-04 foundation and the CLP-00-05 identity schema (see
+// CLP-00-04 foundation and the approved CLP-00/CP-01/CP-03 schema (see
 // ALLOWED_PRISMA_PATHS); everything else remains forbidden and a Prisma schema
 // declaring a non-approved model is rejected separately.
 const FORBIDDEN_PATH_PATTERNS = [/(^|[/\\])\.github[/\\]workflows[/\\]/i];
@@ -143,16 +145,16 @@ for (const file of walk(ROOT)) {
     findings.push(`[${name}] ${rel}`);
   }
 
-  // CLP-00-05: the identity schema may declare ONLY the three approved models
-  // (users / password_credentials / user_roles), and no migration may create a
-  // table outside that approved set (plus Prisma's own metadata table).
+  // CLP-00/CP-01/CP-03: the schema may declare ONLY the approved models
+  // (identity, session, content and learning-event), and no migration may create
+  // a table outside that approved set (plus Prisma's own metadata table).
   if (/(^|[/\\])schema\.prisma$/i.test(rel)) {
     const modelDecls = content.match(/^\s*model\s+(\w+)\s*\{/gm) || [];
     for (const decl of modelDecls) {
       const name = decl.replace(/^\s*model\s+/, '').replace(/\s*\{$/, '');
       if (!APPROVED_MODELS.has(name)) {
         findings.push(
-          `[forbidden prisma model] ${rel} declares "${name}"; CLP-00-05 allows only ` +
+          `[forbidden prisma model] ${rel} declares "${name}"; the approved CLP-00/CP-01/CP-03 schema allows only ` +
             `${[...APPROVED_MODELS].join(', ')}`,
         );
       }
@@ -165,7 +167,7 @@ for (const file of walk(ROOT)) {
       const table = m[1].toLowerCase();
       if (table !== '_prisma_migrations' && !APPROVED_TABLES.has(table)) {
         findings.push(
-          `[forbidden migration DDL] ${rel} creates "${table}"; CLP-00-05 allows only ` +
+          `[forbidden migration DDL] ${rel} creates "${table}"; the approved CLP-00/CP-01/CP-03 schema allows only ` +
             `${[...APPROVED_TABLES].join(', ')}`,
         );
       }

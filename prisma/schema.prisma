@@ -1,4 +1,4 @@
-// Prisma schema — CLP-00 identity/session + CP-01 Content Domain.
+// Prisma schema — CLP-00 identity/session + CP-01 Content + CP-03 Learning Events.
 //
 // SCOPE: the APPROVED tables ONLY:
 //   - users                (stable public UUID, normalized unique login, state)   [CLP-00-05]
@@ -6,6 +6,7 @@
 //   - user_roles           (membership constrained to ADMIN/TEACHER/STUDENT)        [CLP-00-05]
 //   - sessions             (opaque server-side session; ADR-003, CLP-00-06)
 //   - courses/units/lessons + learning_items + lesson_learning_items              [CP-01]
+//   - learning_events      (append-only, versioned interaction evidence)           [CP-03]
 //
 // CP-01 (accepted) adds teacher-managed curriculum hierarchy and reusable
 // Chinese-aware learning items: `courses` -> `units` -> `lessons` (ordered,
@@ -14,9 +15,18 @@
 // Chinese-specific fields (simplified/traditional/pinyin/meaning/HSK/reference),
 // plus a `lesson_learning_items` association that orders items within a lesson.
 //
-// Still FORBIDDEN here: exercises/answers/evaluation (CP-02), learning events
-// (CP-03), mastery/review (CP-04), media storage/upload providers, import/export,
-// AI, analytics, public marketplace, assignment/enrollment or student progress.
+// CP-03 (accepted) adds an APPEND-ONLY `learning_events` record: immutable
+// interaction evidence (lesson started/completed, exercise presented, answer
+// submitted, exercise completed, review activity) with a public UUID, a schema
+// version, a typed event vocabulary, server-derived actor/content/exercise
+// references, a UTC `occurred_at` instant and BOUNDED, allow-listed metadata.
+// There is NO update/delete path (the application repository exposes append
+// only) and NO derived progress. Events are EVIDENCE, not mastery.
+//
+// Still FORBIDDEN here: exercise generators/evaluators (CP-02 — in-memory,
+// stateless), mastery/review scheduling/progress projection (CP-04), media
+// storage/upload providers, import/export, AI, analytics, public marketplace,
+// assignment/enrollment or student progress.
 //
 // The connection URL is read from the environment variable named by
 // `datasource.url`; it is NEVER committed. Development uses `DATABASE_URL`;
@@ -72,6 +82,7 @@ model User {
   sessions        Session[]
   authoredCourses Course[]
   authoredItems   LearningItem[]
+  learningEvents  LearningEvent[]
 
   @@map("users")
 }
@@ -193,6 +204,7 @@ model Course {
 
   author User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
   units  Unit[]
+  events LearningEvent[]
 
   @@index([position])
   @@index([visibility])
@@ -218,6 +230,7 @@ model Unit {
 
   course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons Lesson[]
+  events  LearningEvent[]
 
   @@unique([courseId, position])
   @@unique([courseId, slug])
@@ -243,6 +256,7 @@ model Lesson {
 
   unit  Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
   items LessonLearningItem[]
+  events LearningEvent[]
 
   @@unique([unitId, position])
   @@unique([unitId, slug])
@@ -274,6 +288,7 @@ model LearningItem {
 
   author  User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
   lessons LessonLearningItem[]
+  events  LearningEvent[]
 
   @@index([kind])
   @@map("learning_items")
@@ -297,4 +312,70 @@ model LessonLearningItem {
   @@unique([lessonId, position])
   @@index([learningItemId])
   @@map("lesson_learning_items")
+}
+
+// ---------------------------------------------------------------------------
+// Learning event vocabulary (CP-03). The INITIAL, closed set of interaction
+// evidence kinds. New event types require a separately approved contract and
+// are added here explicitly — there is no free-form/untyped event.
+// ---------------------------------------------------------------------------
+enum LearningEventType {
+  LESSON_STARTED
+  LESSON_COMPLETED
+  EXERCISE_PRESENTED
+  ANSWER_SUBMITTED
+  EXERCISE_COMPLETED
+  REVIEW_ACTIVITY
+}
+
+// ---------------------------------------------------------------------------
+// learning_events — APPEND-ONLY interaction evidence (CP-03).
+//
+// Immutability is a contract, enforced by the application boundary: the
+// repository exposes append-only methods and the service has no update/delete
+// path. The record is nonetheless a plain relational row (no DB trigger) so it
+// stays portable and auditable.
+//
+//   - `id`             internal surrogate key (never exposed outside persistence).
+//   - `publicId`       non-guessable external UUID (the only identifier surfaced).
+//   - `schemaVersion`  payload contract version (bounded, validated per type).
+//   - `type`           closed LearningEventType vocabulary.
+//   - `actorId`        server-derived acting user (FK); never a client claim.
+//   - `course/unit/lesson/learningItem` optional content references (FK, nullable)
+//                      for the item/lesson the interaction concerns.
+//   - `exerciseRef`    optional opaque reference to a CP-02 exercise/instance
+//                      (stored as text; CP-02 owns no table).
+//   - `occurredAt`     UTC instant the interaction occurred (caller-supplied).
+//   - `metadata`       BOUNDED, allow-listed JSON (validated + size-limited in
+//                      the domain); NEVER raw answers/secrets/session payloads.
+//   - `createdAt`      server receipt time (UTC), the append timestamp.
+//
+// Ordering is (occurredAt, id) — a stable tiebreak, since two events may share
+// an instant.
+// ---------------------------------------------------------------------------
+model LearningEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  publicId       String            @unique @default(uuid()) @map("public_id") @db.Uuid
+  schemaVersion  Int               @map("schema_version")
+  type           LearningEventType
+  actorId        String            @map("actor_id") @db.Uuid
+  courseId       String?           @map("course_id") @db.Uuid
+  unitId         String?           @map("unit_id") @db.Uuid
+  lessonId       String?           @map("lesson_id") @db.Uuid
+  learningItemId String?           @map("learning_item_id") @db.Uuid
+  exerciseRef    String?           @map("exercise_ref") @db.VarChar(200)
+  occurredAt     DateTime          @map("occurred_at") @db.Timestamptz(6)
+  metadata       Json?             @map("metadata")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor        User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  course       Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  unit         Unit?         @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  lesson       Lesson?       @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  learningItem LearningItem? @relation(fields: [learningItemId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, occurredAt])
+  @@index([occurredAt, id])
+  @@index([type])
+  @@map("learning_events")
 }

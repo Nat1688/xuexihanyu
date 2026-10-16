@@ -21,8 +21,8 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 const { classifyUrl, safeTarget, assertResettable } = require('./db-url.cjs');
 
-// Approved base tables (CLP-00-05/06 identity+session, CP-01 content) + Prisma
-// metadata.
+// Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
+// learning events) + Prisma metadata.
 const APPROVED_TABLES = new Set([
   '_prisma_migrations',
   'users',
@@ -34,6 +34,7 @@ const APPROVED_TABLES = new Set([
   'lessons',
   'learning_items',
   'lesson_learning_items',
+  'learning_events',
 ]);
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 

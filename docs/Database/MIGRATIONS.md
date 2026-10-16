@@ -222,3 +222,76 @@ Against a local PostgreSQL instance with `clp_app` (non-superuser):
 - HTTP authorization e2e: anonymous → 401, STUDENT → 403, TEACHER → 201, cross-owner TEACHER →
   403, ADMIN → allowed; students never see DRAFT content.
 - `npm run secret-scan` → PASSED (no findings).
+
+---
+
+# Learning Events (CP-03)
+
+**Task:** CP-03 — Learning events (append-only, versioned interaction evidence).
+**Status:** Accepted by Owner.
+
+CP-03 adds the **append-only learning-event foundation** only, within the accepted task contract: a
+single immutable `learning_events` record capturing *that* an interaction happened, with a versioned
+payload and bounded, allow-listed metadata. It is added by one new, append-only migration; no
+existing table is altered.
+
+## Schema (CP-03)
+
+| Model (Prisma)  | Table             | Purpose                                                       |
+| --------------- | ----------------- | ------------------------------------------------------------- |
+| `LearningEvent` | `learning_events` | Append-only, versioned interaction evidence (one row per event). |
+
+Enum: `LearningEventType` = `LESSON_STARTED | LESSON_COMPLETED | EXERCISE_PRESENTED |
+ANSWER_SUBMITTED | EXERCISE_COMPLETED | REVIEW_ACTIVITY`.
+
+Key invariants (enforced in the DB and in tests):
+
+- `public_id` is a non-guessable **UNIQUE** UUID, distinct from the surrogate `id` (which never
+  leaves persistence).
+- `schema_version` is a bounded integer (currently `1`); `type` is constrained to the enum.
+- `actor_id` FK → `users` with **ON DELETE RESTRICT** — evidence is attributable and never ownerless.
+- Optional `course_id`/`unit_id`/`lesson_id`/`learning_item_id` FKs use **ON DELETE SET NULL** — the
+  interaction record **survives** deletion of its content.
+- `exercise_ref` is bounded `VARCHAR(200)`; `metadata` is bounded `JSONB`; `occurred_at`/`created_at`
+  are `TIMESTAMPTZ`.
+- Indexes support deterministic reads: `(actor_id, occurred_at)`, `(occurred_at, id)`, and `(type)`.
+- **Append-only:** the migration defines no update/delete trigger and no mutable column; the
+  application port/service expose no mutation method (asserted by tests).
+
+## Privacy & retention (CP-03)
+
+- **Events are evidence, not derived progress.** A row records interaction evidence and a normalized
+  outcome only; mastery/review scheduling/progress projection is **CP-04** and absent here.
+- **Metadata is fail-closed and allow-listed** (`mode`, `format`, `outcome`, `durationMs`,
+  `feedbackCode`, `source`) with per-key/total size limits; any other key (`answer`, `token`,
+  `cookie`, `csrf`, `sessionId`, …) is rejected and its value is never echoed.
+- No raw answers/credentials/cookies/CSRF/session payloads are stored.
+- Teacher/admin reporting is deferred to a separately approved reporting/query contract.
+
+## Migration (CP-03)
+
+| Artifact                                           | Purpose                                                       |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| `prisma/migrations/20261016100400_learning_events/` | CP-03 DDL: 1 enum + 1 table + indexes + FKs (append-only).    |
+
+Hand-written to match the deterministic `prisma migrate diff … --script` format (no shadow DB was
+available in the implementation environment). The match was **verified** by diffing the live
+`clp_test` schema (after applying the migration) against `prisma/schema.prisma`, which produced
+“an empty migration”. The approved-tables assertion in `db:test:validate` and the schema/structural
+gates were extended to include exactly this table and enum.
+
+## Verification performed (CP-03 task)
+
+Against a local PostgreSQL instance with `clp_app` (non-superuser):
+
+- `npm run db:validate` → schema parses.
+- Full migration reset on `clp_test` → all five migrations apply cleanly from zero.
+- `prisma migrate diff --from-url <clp_test current> --to-schema-datamodel prisma/schema.prisma
+  --script` → `empty migration` (migration is byte-equivalent to the schema).
+- Unit + schema-structural suite: 499/499 PASS — covering the closed vocabulary, the schema-version
+  policy, the metadata allow-list/privacy guard (fail-closed, no value echoed), deterministic
+  `(occurredAt, id)` ordering, the append-only boundary (no update/delete method at port or service),
+  and the CP-03 schema/migration facts.
+- Integration suite against `clp_test`: 30/30 PASS — including learning-event persistence
+  (public UUID, closed type, FK attributability, `SET NULL` on content deletion, deterministic
+  ordering, bounded JSONB metadata).
