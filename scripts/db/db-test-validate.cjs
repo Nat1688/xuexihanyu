@@ -38,10 +38,16 @@ const APPROVED_TABLES = new Set([
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 
 function prisma(args, url) {
-  const prismaBin = path.join(REPO_ROOT, 'node_modules', '.bin', 'prisma');
+  const prismaBin = path.join(
+    REPO_ROOT,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
+  );
   return spawnSync(prismaBin, args, {
     cwd: REPO_ROOT,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
     env: { ...process.env, DATABASE_URL: url },
   });
 }
@@ -49,7 +55,10 @@ function prisma(args, url) {
 function psqlBin() {
   if (process.env.CLP_PSQL_BIN) return process.env.CLP_PSQL_BIN;
   // Try PATH, then a few common PostgreSQL install locations.
-  const candidates = ['psql', '/usr/lib/postgresql/16/bin/psql', '/usr/lib/postgresql/15/bin/psql'];
+  const candidates =
+    process.platform === 'win32'
+      ? ['C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe', 'psql']
+      : ['psql', '/usr/lib/postgresql/16/bin/psql', '/usr/lib/postgresql/15/bin/psql'];
   for (const c of candidates) {
     const probe = spawnSync(c, ['--version'], { stdio: 'ignore' });
     if (!probe.error && probe.status === 0) return c;
@@ -66,7 +75,10 @@ function listTables(url) {
     "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by table_name;";
   const res = spawnSync(psql, [conn, '-tAc', sql], { encoding: 'utf8' });
   if (res.error || res.status !== 0) return null;
-  return res.stdout.trim().split('\n').filter(Boolean);
+  return res.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function main() {
