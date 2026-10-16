@@ -94,7 +94,18 @@ describe('session migration is additive (only adds sessions)', () => {
   });
 
   it('across ALL migrations, only the approved tables are ever created', () => {
-    const approved = new Set(['users', 'password_credentials', 'user_roles', 'sessions']);
+    // Identity (CLP-00-05), session (CLP-00-06) and CP-01 content tables.
+    const approved = new Set([
+      'users',
+      'password_credentials',
+      'user_roles',
+      'sessions',
+      'courses',
+      'units',
+      'lessons',
+      'learning_items',
+      'lesson_learning_items',
+    ]);
     for (const { dir, sql } of allMigrationSql()) {
       for (const table of createdTables(sql)) {
         expect(approved.has(table)).toBe(true);

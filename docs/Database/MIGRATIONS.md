@@ -145,3 +145,80 @@ The tooling creates/uses **`clp_dev`** and **`clp_test`** on your local PostgreS
 creates only Prisma's `_prisma_migrations` bookkeeping table plus the three approved CLP-00-05
 identity tables, and performs **no** destructive action unless `db:test:reset` (or
 `db:test:validate`) is invoked with the guard's confirmation against `clp_test`.
+
+---
+
+# Content Domain (CP-01)
+
+**Task:** CP-01 — Content domain (teacher-managed curriculum hierarchy + reusable Chinese-aware
+learning items). **Status:** Accepted by Owner.
+
+CP-01 adds the **content foundation** only, within the accepted task contract: the ordered
+curriculum hierarchy (`courses` → `units` → `lessons`) plus a reusable learning-item library with
+an explicit Chinese-aware `kind` and a lesson↔item association. It is added by one new,
+append-only migration; no existing table is altered.
+
+## Schema (CP-01)
+
+| Model (Prisma)       | Table                   | Purpose                                                          |
+| -------------------- | ----------------------- | ---------------------------------------------------------------- |
+| `Course`             | `courses`               | Top of the hierarchy; UNIQUE slug, indexed order, author, visibility. |
+| `Unit`               | `units`                 | Belongs to one course; ordered per course.                       |
+| `Lesson`             | `lessons`               | Belongs to one unit; ordered per unit.                           |
+| `LearningItem`       | `learning_items`        | Reusable Chinese-aware item with an explicit `kind`.             |
+| `LessonLearningItem` | `lesson_learning_items` | Ordered lesson↔item association.                                 |
+
+Enums: `ContentVisibility` = `DRAFT | PUBLISHED`; `LearningItemKind` =
+`VOCABULARY | CHARACTER | GRAMMAR | EXAMPLE | MEDIA_REFERENCE`.
+
+Key invariants (enforced in the DB and in tests):
+
+- `courses.slug` is **UNIQUE**; `courses.position` is **indexed** for ordering (NOT globally
+  unique, so any number of courses may coexist).
+- `units` UNIQUE `(course_id, slug)` and `(course_id, position)` — order/slug uniqueness is
+  **within the parent course**.
+- `lessons` UNIQUE `(unit_id, slug)` and `(unit_id, position)` — order/slug uniqueness is
+  **within the parent unit**.
+- Every node carries `visibility` (default `DRAFT`) and an `author_id` FK (TEACHER/ADMIN).
+- `learning_items` carries an explicit `kind` plus Chinese fields `simplified`, `traditional`,
+  `pinyin`, `meaning`, `hsk_level` and a structured `reference` JSONB. A `MEDIA_REFERENCE` item
+  stores **no media** — only a structured reference (no media table exists).
+- `lesson_learning_items` composite PK `(lesson_id, learning_item_id)` + UNIQUE
+  `(lesson_id, position)` orders items within a lesson; items are reusable across lessons.
+
+## Authorization & read policy (CP-01)
+
+- **All authoring mutations require TEACHER/ADMIN, enforced server-side.** The HTTP routes are
+  guarded by the shared `AuthGuard` + `RoleGuard` (`@RequireRoles('TEACHER','ADMIN')`), and the
+  per-object rule is applied in `ContentService` via the domain policy: a **TEACHER may mutate
+  only their OWN content**; an **ADMIN any**. A non-authoring caller is refused with a uniform 403.
+- **Students read only PUBLISHED content.** DRAFT content is authorable but filtered out of every
+  student-facing read server-side (`content-read-policy.ts`). UI hiding is never authorization.
+- Reads are **deterministic** (stable ordering) and carry **no** exercise generation/evaluation.
+
+## Migration (CP-01)
+
+| Artifact                                          | Purpose                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------- |
+| `prisma/migrations/20261016030000_content_domain/` | CP-01 DDL: 2 enums + 5 tables + indexes + FKs (append-only).   |
+
+Generated with `prisma migrate diff --from-url <clp_test current> --to-schema-datamodel
+prisma/schema.prisma --script` (deterministic; no shadow DB). The approved-tables assertion in
+`db:test:validate` and the schema/secret gates were extended to include exactly these tables.
+
+## Verification performed (CP-01 task)
+
+Against a local PostgreSQL instance with `clp_app` (non-superuser):
+
+- `npm run db:validate` → schema parses.
+- `npm run db:test:validate` → `PASS: zero->current, only approved identity tables present.`
+  Table inventory (`clp_test`): `_prisma_migrations`, `courses`, `learning_items`,
+  `lesson_learning_items`, `lessons`, `password_credentials`, `sessions`, `units`, `user_roles`,
+  `users` — the approved set only.
+- Unit suite (identity + content): 388/388 PASS. Content covers the hierarchy order/uniqueness/
+  ownership matrix, the Chinese field + item-kind contracts, and the read-visibility policy.
+- Integration suite against `clp_test`: 20/20 PASS — including content persistence invariants
+  (per-parent position/slug uniqueness, Chinese field round-trip, ordered lesson items, FK).
+- HTTP authorization e2e: anonymous → 401, STUDENT → 403, TEACHER → 201, cross-owner TEACHER →
+  403, ADMIN → allowed; students never see DRAFT content.
+- `npm run secret-scan` → PASSED (no findings).

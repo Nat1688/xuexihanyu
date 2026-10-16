@@ -20,8 +20,10 @@ import { ReportingModule } from './modules/reporting/reporting.module';
  * Wires the module boundaries required by ADR-001 plus the cross-cutting
  * `ConfigModule` (CLP-00-03 typed config), `PrismaModule` (CLP-00-06 shared
  * client) and `FoundationLoggingModule` (CLP-00-10 request/correlation id).
- * Domain modules beyond identity/health remain EMPTY placeholders: they define a
- * boundary but contain no CP-01+ behavior, schema or persistence.
+ * `IdentityModule` provides identity/session/role authorization, and
+ * `ContentModule` provides the CP-01 content domain. Domain modules beyond
+ * identity/content/health remain EMPTY placeholders: they define a boundary but
+ * contain no CP-02+ behavior, schema or persistence.
  */
 @Module({
   imports: [

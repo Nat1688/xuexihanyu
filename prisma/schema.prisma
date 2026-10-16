@@ -1,17 +1,22 @@
-// Prisma schema — CLP-00-05 Identity Domain + CLP-00-06 Session Lifecycle.
+// Prisma schema — CLP-00 identity/session + CP-01 Content Domain.
 //
-// SCOPE: the APPROVED identity + session tables ONLY:
+// SCOPE: the APPROVED tables ONLY:
 //   - users                (stable public UUID, normalized unique login, state)   [CLP-00-05]
 //   - password_credentials (1:1 user, memory-hard hash + algorithm metadata)       [CLP-00-05]
 //   - user_roles           (membership constrained to ADMIN/TEACHER/STUDENT)        [CLP-00-05]
 //   - sessions             (opaque server-side session; ADR-003, CLP-00-06)
+//   - courses/units/lessons + learning_items + lesson_learning_items              [CP-01]
 //
-// CLP-00-05 superseded the CLP-00-04 "no models" foundation for the three
-// identity models; CLP-00-06 adds exactly ONE further table, `sessions`, per the
-// accepted CLP-00-06 task contract + ADR-003. Still FORBIDDEN here: profile/
-// class/enrollment, teacher/student relationship, content/exercise/learning-event/
-// mastery/reporting/AI tables, session permission/role snapshots, seed/bootstrap
-// rows.
+// CP-01 (accepted) adds teacher-managed curriculum hierarchy and reusable
+// Chinese-aware learning items: `courses` -> `units` -> `lessons` (ordered,
+// with author/visibility metadata), a reusable `learning_items` library with an
+// explicit kind (vocabulary/character/grammar/example/media_reference) and
+// Chinese-specific fields (simplified/traditional/pinyin/meaning/HSK/reference),
+// plus a `lesson_learning_items` association that orders items within a lesson.
+//
+// Still FORBIDDEN here: exercises/answers/evaluation (CP-02), learning events
+// (CP-03), mastery/review (CP-04), media storage/upload providers, import/export,
+// AI, analytics, public marketplace, assignment/enrollment or student progress.
 //
 // The connection URL is read from the environment variable named by
 // `datasource.url`; it is NEVER committed. Development uses `DATABASE_URL`;
@@ -65,6 +70,8 @@ model User {
   credential      PasswordCredential?
   roles           UserRoleAssignment[]
   sessions        Session[]
+  authoredCourses Course[]
+  authoredItems   LearningItem[]
 
   @@map("users")
 }
@@ -74,16 +81,16 @@ model User {
 // the algorithm metadata needed to verify it. NO plaintext/reversible value.
 // ---------------------------------------------------------------------------
 model PasswordCredential {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @unique @map("user_id") @db.Uuid
-  algorithm      String   @db.VarChar(64)
-  parameters     Json
-  hash           String   @db.VarChar(512)
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  algorithm         String   @db.VarChar(64)
+  parameters        Json
+  hash              String   @db.VarChar(512)
   passwordChangedAt DateTime @default(now()) @map("password_changed_at") @db.Timestamptz(6)
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_credentials")
 }
@@ -97,7 +104,7 @@ model UserRoleAssignment {
   role      UserRole
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, role])
   @@map("user_roles")
@@ -125,8 +132,169 @@ model Session {
   expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
   revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
 
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
+}
+
+// ===========================================================================
+// CP-01 Content Domain — teacher-managed curriculum hierarchy + reusable
+// Chinese-aware learning items. Deterministic read retrieval only; NO exercise
+// generation/evaluation, learning events, mastery, media storage, import/export
+// or AI.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Content visibility (CP-01). `DRAFT` content is authorable but never surfaced
+// to students; `PUBLISHED` content is readable by students. Students read only
+// according to this value — enforced server-side, never by UI hiding.
+// ---------------------------------------------------------------------------
+enum ContentVisibility {
+  DRAFT
+  PUBLISHED
+}
+
+// ---------------------------------------------------------------------------
+// Reusable learning-item kinds (CP-01). A Chinese learning item is NEVER
+// collapsed into a generic term/definition: the kind selects which
+// Chinese-specific fields are meaningful (see `LearningItem`).
+// ---------------------------------------------------------------------------
+enum LearningItemKind {
+  VOCABULARY
+  CHARACTER
+  GRAMMAR
+  EXAMPLE
+  MEDIA_REFERENCE
+}
+
+// ---------------------------------------------------------------------------
+// courses — top of the curriculum hierarchy, authored by a TEACHER/ADMIN.
+//   - `id`           internal surrogate key (never surfaced).
+//   - `publicId`     non-guessable external UUID (the only identifier surfaced).
+//   - `slug`         human-readable stable URL key, UNIQUE.
+//   - `title`        display title.
+//   - `description`  optional long-form description.
+//   - `visibility`   DRAFT | PUBLISHED (published gates student reads).
+//   - `authorId`     the identity that authored it (server-derived).
+//   - `position`     order among courses (ascending, UNIQUE per scope).
+// ---------------------------------------------------------------------------
+model Course {
+  id          String            @id @default(uuid()) @db.Uuid
+  publicId    String            @unique @default(uuid()) @map("public_id") @db.Uuid
+  slug        String            @unique @db.VarChar(160)
+  title       String            @db.VarChar(200)
+  description String?           @db.Text
+  visibility  ContentVisibility @default(DRAFT)
+  authorId    String            @map("author_id") @db.Uuid
+  position    Int               @default(0)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  units  Unit[]
+
+  @@index([position])
+  @@index([visibility])
+  @@map("courses")
+}
+
+// ---------------------------------------------------------------------------
+// units — middle of the hierarchy; belongs to exactly one course. `position`
+// is the order WITHIN the parent course (UNIQUE per course), distinct from a
+// global order.
+// ---------------------------------------------------------------------------
+model Unit {
+  id          String            @id @default(uuid()) @db.Uuid
+  publicId    String            @unique @default(uuid()) @map("public_id") @db.Uuid
+  courseId    String            @map("course_id") @db.Uuid
+  slug        String            @db.VarChar(160)
+  title       String            @db.VarChar(200)
+  description String?           @db.Text
+  visibility  ContentVisibility @default(DRAFT)
+  position    Int               @default(0)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@unique([courseId, position])
+  @@unique([courseId, slug])
+  @@index([courseId])
+  @@map("units")
+}
+
+// ---------------------------------------------------------------------------
+// lessons — bottom of the hierarchy; belongs to exactly one unit. `position`
+// is the order WITHIN the parent unit (UNIQUE per unit).
+// ---------------------------------------------------------------------------
+model Lesson {
+  id          String            @id @default(uuid()) @db.Uuid
+  publicId    String            @unique @default(uuid()) @map("public_id") @db.Uuid
+  unitId      String            @map("unit_id") @db.Uuid
+  slug        String            @db.VarChar(160)
+  title       String            @db.VarChar(200)
+  description String?           @db.Text
+  visibility  ContentVisibility @default(DRAFT)
+  position    Int               @default(0)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  unit  Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  items LessonLearningItem[]
+
+  @@unique([unitId, position])
+  @@unique([unitId, slug])
+  @@index([unitId])
+  @@map("lessons")
+}
+
+// ---------------------------------------------------------------------------
+// learning_items — reusable, Chinese-aware item library. An item is NOT lesson
+// specific and may be associated with many lessons. Chinese-specific fields are
+// carried explicitly (`simplified`, `traditional`, `pinyin`, `meaning`) plus
+// structured `hskLevel` and a free-form `reference` (JSON) for kind-specific
+// structured data. `kind` selects which fields are meaningful; the domain
+// contract validates the required fields per kind.
+// ---------------------------------------------------------------------------
+model LearningItem {
+  id          String           @id @default(uuid()) @db.Uuid
+  publicId    String           @unique @default(uuid()) @map("public_id") @db.Uuid
+  kind        LearningItemKind
+  simplified  String?          @db.VarChar(200)
+  traditional String?          @db.VarChar(200)
+  pinyin      String?          @db.VarChar(200)
+  meaning     String?          @db.Text
+  hskLevel    Int?             @map("hsk_level")
+  reference   Json?
+  authorId    String           @map("author_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  author  User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  lessons LessonLearningItem[]
+
+  @@index([kind])
+  @@map("learning_items")
+}
+
+// ---------------------------------------------------------------------------
+// lesson_learning_items — ordered association between a lesson and a reusable
+// learning item. `position` orders items WITHIN a lesson (UNIQUE per lesson);
+// the same learning item may appear in many lessons.
+// ---------------------------------------------------------------------------
+model LessonLearningItem {
+  lessonId       String   @map("lesson_id") @db.Uuid
+  learningItemId String   @map("learning_item_id") @db.Uuid
+  position       Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lesson       Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  learningItem LearningItem @relation(fields: [learningItemId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, learningItemId])
+  @@unique([lessonId, position])
+  @@index([learningItemId])
+  @@map("lesson_learning_items")
 }

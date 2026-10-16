@@ -37,8 +37,31 @@ const ALLOWED_PRISMA_PATHS = [
 // CLP-00-05: identity schema is authorized, but ONLY the three ADR-004 models
 // and their three tables. Any other model/table means a later-checkpoint or
 // forbidden schema leaked in.
-const APPROVED_MODELS = new Set(['User', 'PasswordCredential', 'UserRoleAssignment', 'Session']);
-const APPROVED_TABLES = new Set(['users', 'password_credentials', 'user_roles', 'sessions']);
+const APPROVED_MODELS = new Set([
+  'User',
+  'PasswordCredential',
+  'UserRoleAssignment',
+  'Session',
+  'Course',
+  'Unit',
+  'Lesson',
+  'LearningItem',
+  'LessonLearningItem',
+]);
+// Approved base tables (CLP-00-05/06 identity+session, CP-01 content) + Prisma
+// metadata.
+const APPROVED_TABLES = new Set([
+  '_prisma_migrations',
+  'courses',
+  'learning_items',
+  'lesson_learning_items',
+  'lessons',
+  'password_credentials',
+  'sessions',
+  'units',
+  'user_roles',
+  'users',
+]);
 
 // Test files that intentionally contain SYNTHETIC fixtures for the config
 // boundary (CLP-00-03). These must never hold real values; the scanner still
@@ -52,6 +75,8 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/protected/identity-auth-service.spec.ts',
   'apps/api/test/protected/identity-auth.e2e-spec.ts',
   'apps/api/test/protected/identity-role-authorization.e2e-spec.ts',
+  // CP-01 content HTTP authorization e2e — synthetic, inert test password only.
+  'apps/api/test/protected/content-authorization.e2e-spec.ts',
   'apps/api/test/protected/logging-redaction.spec.ts',
   'apps/api/test/protected/logging-structured-logger.spec.ts',
   'apps/api/test/protected/logging-startup-diagnostics.spec.ts',
