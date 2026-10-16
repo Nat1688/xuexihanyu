@@ -40,6 +40,13 @@ Implement the shortest useful path: `LOGIN → TODAY → CONTINUE → EXERCISE �
 ## CP-06 — Teacher MVP
 Implement classes/enrollment, assignments, student detail, class aggregates, weak-item evidence and teacher notes. Analytics must identify their source window and must not imply unsupported high-stakes assessment.
 
+## Owner Decision — AI checkpoints deferred
+
+**Decision date:** 2026-10-16  
+**Status:** CP-07 through CP-10 are **future-only and implementation-deferred** by Owner decision.
+
+Do not open an AI contract, add an AI provider/model integration, create AI code, invoke AI tools against student/content data, or treat these checkpoints as automatic next work. Reopen requires a new explicit Owner instruction plus a fresh CP-07 ADR/security review. This decision does **not** defer CP-01 through CP-06.
+
 ## CP-07 — AI Foundation
 Introduce AI as an optional application-layer consumer through explicit tools/services such as `get_student_progress`, `get_weak_items`, `get_recent_mistakes`, `get_due_reviews`, and `get_lesson_content`. No direct SQL/database credentials for AI. Provider adapter must permit later cloud/local model substitution.
 
