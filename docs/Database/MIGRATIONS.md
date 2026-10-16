@@ -295,3 +295,64 @@ Against a local PostgreSQL instance with `clp_app` (non-superuser):
 - Integration suite against `clp_test`: 30/30 PASS — including learning-event persistence
   (public UUID, closed type, FK attributability, `SET NULL` on content deletion, deterministic
   ordering, bounded JSONB metadata).
+
+# Mastery Projection (CP-04)
+
+**Task:** CP-04 — Mastery & review engine (deterministic, versioned projection).
+**Status:** Accepted by Owner.
+
+CP-04 adds **one derived, replaceable projection** table, `mastery_projections`, computed from the
+immutable CP-03 evidence under a fixed, versioned rule set. It is added by one new, additive
+migration; no existing table is altered and `learning_events` is never touched.
+
+## Schema (CP-04)
+
+| Model (Prisma)      | Table                 | Purpose                                                         |
+| ------------------- | --------------------- | --------------------------------------------------------------- |
+| `MasteryProjection` | `mastery_projections` | Derived per (user, learning item) mastery + review schedule.    |
+
+Enum: `MasteryState` = `NEW | LEARNING | FAMILIAR | MASTERED`.
+
+Key invariants (enforced in the DB and in tests):
+
+- `actor_id` + `learning_item_id` are a **UNIQUE** pair — exactly one projection per pair; a
+  recompute **overwrites** (upsert), never duplicates.
+- `actor_id` FK → `users` **ON DELETE RESTRICT**; `learning_item_id` FK → `learning_items`
+  **ON DELETE CASCADE** (deleting an item removes its derived rows; the underlying event survives
+  with a `SET NULL` item reference).
+- `state` is constrained to the closed `MasteryState` enum; `due_at`/`recomputed_at` are
+  `TIMESTAMPTZ`; `rule_version` is stored with every row.
+- `source_last_event_at` / `source_last_event_id` form the source-event cursor used by an
+  incremental pass; a rebuild ignores it.
+- **Derived & replaceable:** the migration defines no trigger and no statement touching
+  `learning_events`; the service may `replace`/`clear`/`rebuild` derived rows only.
+
+See **[`docs/Database/MASTERY.md`](../Database/MASTERY.md)** for the full column guide and
+**[`docs/Domain/MASTERY.md`](../Domain/MASTERY.md)** for the transition/schedule rules.
+
+## Migration (CP-04)
+
+| Artifact                                                  | Purpose                                                   |
+| --------------------------------------------------------- | --------------------------------------------------------- |
+| `prisma/migrations/20261016140000_mastery_projections/`   | CP-04 DDL: 1 enum + 1 table + indexes + FKs (derived).    |
+
+Hand-written to match the deterministic `prisma migrate diff … --script` output, generated with the
+`clp_test` database as the shadow DB. The approved-tables assertion in `db:test:validate`, the
+`secret-scan` model/table allow-lists, and the schema/structural gates were extended to include
+exactly this table and enum.
+
+## Verification performed (CP-04 task)
+
+Against a local PostgreSQL instance:
+
+- `node node_modules/prisma/build/index.js validate` → schema parses; `generate` succeeds.
+- Migration applied to `clp_test` cleanly (six migrations from zero).
+- `prisma migrate diff --from-migrations … --script` matched the hand-written migration.
+- Unit + schema-structural suite: 539/539 PASS (40 new CP-04 tests) — covering the closed state
+  vocabulary, rule-version policy, deterministic review intervals, the `NEW→LEARNING→FAMILIAR→
+  MASTERED` transitions, lapse handling, idempotency, replay, rebuild-equals-incremental across
+  actors, clock-free derivation, read-only evidence access, and the no-mutation boundary.
+- Integration suite against `clp_test`: 34/34 PASS — including derive/recompute-overwrite,
+  rebuild-equals-incremental, and evidence-unchanged-after-rebuild, plus item-delete CASCADE.
+- `eslint --max-warnings 0`, `prettier --check`, `tsc --noEmit`, `nest build` and
+  `scripts/secret-scan.cjs` all pass.

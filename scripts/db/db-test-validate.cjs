@@ -35,6 +35,7 @@ const APPROVED_TABLES = new Set([
   'learning_items',
   'lesson_learning_items',
   'learning_events',
+  'mastery_projections',
 ]);
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 

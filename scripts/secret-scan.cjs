@@ -35,8 +35,8 @@ const ALLOWED_PRISMA_PATHS = [
 ];
 
 // Approved schema: CLP-00-05/06 identity+session, CP-01 content, CP-03 learning
-// events. Any other model/table means a later-checkpoint or forbidden schema
-// leaked in.
+// events, CP-04 mastery projection. Any other model/table means a later-
+// checkpoint or forbidden schema leaked in.
 const APPROVED_MODELS = new Set([
   'User',
   'PasswordCredential',
@@ -48,9 +48,10 @@ const APPROVED_MODELS = new Set([
   'LearningItem',
   'LessonLearningItem',
   'LearningEvent',
+  'MasteryProjection',
 ]);
 // Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
-// learning events) + Prisma metadata.
+// learning events, CP-04 mastery projection) + Prisma metadata.
 const APPROVED_TABLES = new Set([
   '_prisma_migrations',
   'courses',
@@ -58,6 +59,7 @@ const APPROVED_TABLES = new Set([
   'lesson_learning_items',
   'lessons',
   'learning_events',
+  'mastery_projections',
   'password_credentials',
   'sessions',
   'units',

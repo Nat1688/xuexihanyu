@@ -1,11 +1,12 @@
 /**
  * Prisma schema invariants (CLP-00-05 identity + CLP-00-06 session + CP-01
- * content + CP-03 learning events).
+ * content + CP-03 learning events + CP-04 mastery projection).
  *
  * CLP-00-04 shipped a model-free foundation; CLP-00-05 authorized EXACTLY three
  * identity models/tables (ADR-004); CLP-00-06 added exactly one session table;
- * CP-01 adds exactly the approved content-domain models/tables; and CP-03 adds
- * exactly ONE append-only learning-event model/table:
+ * CP-01 adds exactly the approved content-domain models/tables; CP-03 adds
+ * exactly ONE append-only learning-event model/table; and CP-04 adds exactly ONE
+ * DERIVED, replaceable mastery-projection model/table:
  *
  *   identity   : `User` -> `users`, `PasswordCredential` -> `password_credentials`,
  *                `UserRoleAssignment` -> `user_roles`
@@ -14,14 +15,16 @@
  *                `LearningItem` -> `learning_items`,
  *                `LessonLearningItem` -> `lesson_learning_items`
  *   events     : `LearningEvent` -> `learning_events`
+ *   mastery    : `MasteryProjection` -> `mastery_projections` (DERIVED)
  *
  * This guard asserts the schema declares the datasource + client generator and
  * EXACTLY those approved models and no others, and that every migration creates
  * only approved tables (no CP-02 exercise-instance/answer-persistence table, no
- * CP-04 mastery/review, media/import-export/AI/analytics table may appear — the
- * CP-02 exercise boundary is stateless/in-memory and owns no table). It is the
- * structural gate that keeps each checkpoint from silently growing into
- * later-checkpoint or forbidden schema.
+ * media/import-export/AI/analytics table may appear — the CP-02 exercise
+ * boundary is stateless/in-memory and owns no table, and CP-04's mastery store
+ * is a derived projection, not evidence). It is the structural gate that keeps
+ * each checkpoint from silently growing into later-checkpoint or forbidden
+ * schema.
  *
  * File-only: no database, no Prisma engine, no network.
  */
@@ -32,7 +35,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const SCHEMA_PATH = path.join(REPO_ROOT, 'prisma', 'schema.prisma');
 const MIGRATIONS_DIR = path.join(REPO_ROOT, 'prisma', 'migrations');
 
-/** The approved Prisma model names (CLP-00-05/06 + CP-01 + CP-03). */
+/** The approved Prisma model names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
 const APPROVED_MODELS = [
   'User',
   'PasswordCredential',
@@ -44,9 +47,10 @@ const APPROVED_MODELS = [
   'LearningItem',
   'LessonLearningItem',
   'LearningEvent',
+  'MasteryProjection',
 ];
 
-/** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03). */
+/** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
 const APPROVED_TABLES = [
   'users',
   'password_credentials',
@@ -58,15 +62,17 @@ const APPROVED_TABLES = [
   'learning_items',
   'lesson_learning_items',
   'learning_events',
+  'mastery_projections',
 ];
 
-/** The approved enums (CLP-00-05/06 + CP-01 + CP-03). */
+/** The approved enums (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
 const APPROVED_ENUMS = [
   'AccountState',
   'UserRole',
   'ContentVisibility',
   'LearningItemKind',
   'LearningEventType',
+  'MasteryState',
 ];
 
 /** The only tables a migration may create, plus Prisma metadata. */

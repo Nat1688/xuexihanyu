@@ -94,8 +94,8 @@ describe('session migration is additive (only adds sessions)', () => {
   });
 
   it('across ALL migrations, only the approved tables are ever created', () => {
-    // Identity (CLP-00-05), session (CLP-00-06), CP-01 content and CP-03
-    // learning-event tables.
+    // Identity (CLP-00-05), session (CLP-00-06), CP-01 content, CP-03
+    // learning-event and CP-04 mastery-projection tables.
     const approved = new Set([
       'users',
       'password_credentials',
@@ -107,6 +107,7 @@ describe('session migration is additive (only adds sessions)', () => {
       'learning_items',
       'lesson_learning_items',
       'learning_events',
+      'mastery_projections',
     ]);
     for (const { dir, sql } of allMigrationSql()) {
       for (const table of createdTables(sql)) {

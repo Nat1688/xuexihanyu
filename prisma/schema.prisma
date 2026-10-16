@@ -23,10 +23,16 @@
 // There is NO update/delete path (the application repository exposes append
 // only) and NO derived progress. Events are EVIDENCE, not mastery.
 //
+// CP-04 (accepted) adds `mastery_projections`: a DERIVED, REPLACEABLE per
+// (user, learning item) mastery + review-schedule projection computed from the
+// immutable CP-03 events under a versioned rule set. It is a projection, never
+// a source of truth: it can be cleared and rebuilt from ordered evidence, and
+// there is NO path that mutates events. `MasteryState` enum = NEW | LEARNING |
+// FAMILIAR | MASTERED.
+//
 // Still FORBIDDEN here: exercise generators/evaluators (CP-02 — in-memory,
-// stateless), mastery/review scheduling/progress projection (CP-04), media
-// storage/upload providers, import/export, AI, analytics, public marketplace,
-// assignment/enrollment or student progress.
+// stateless), media storage/upload providers, import/export, AI, analytics,
+// public marketplace, assignment/enrollment or student progress UI.
 //
 // The connection URL is read from the environment variable named by
 // `datasource.url`; it is NEVER committed. Development uses `DATABASE_URL`;
@@ -83,6 +89,7 @@ model User {
   authoredCourses Course[]
   authoredItems   LearningItem[]
   learningEvents  LearningEvent[]
+  mastery         MasteryProjection[]
 
   @@map("users")
 }
@@ -289,6 +296,7 @@ model LearningItem {
   author  User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
   lessons LessonLearningItem[]
   events  LearningEvent[]
+  mastery MasteryProjection[]
 
   @@index([kind])
   @@map("learning_items")
@@ -378,4 +386,72 @@ model LearningEvent {
   @@index([occurredAt, id])
   @@index([type])
   @@map("learning_events")
+}
+
+// ===========================================================================
+// CP-04 Mastery & Review Engine — DERIVED, REPLACEABLE projection over CP-03
+// evidence. NOT evidence: every row here can be dropped and rebuilt from the
+// immutable `learning_events` under a fixed rule version.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Mastery state vocabulary (CP-04). The INITIAL, closed set of derived states.
+// New states require a separately approved contract and are added explicitly.
+// ---------------------------------------------------------------------------
+enum MasteryState {
+  NEW
+  LEARNING
+  FAMILIAR
+  MASTERED
+}
+
+// ---------------------------------------------------------------------------
+// mastery_projections — DERIVED per (user, learning item) mastery + review
+// schedule (CP-04).
+//
+// This table is a PROJECTION, not a source of truth. It is fully replaceable:
+// `MasteryService.rebuild` clears it and re-derives every row from the ordered
+// `learning_events`. It stores NO evidence of its own and there is NO path that
+// mutates a learning event from here.
+//
+//   - `id`                  internal surrogate key (never exposed).
+//   - `actorId`             the user this projection is about (FK, RESTRICT).
+//   - `learningItemId`      the item this projection is about (FK, CASCADE:
+//                           deleting an item removes its now-meaningless rows).
+//   - `state`               derived MasteryState (NEW/LEARNING/FAMILIAR/MASTERED).
+//   - `dueAt`               derived review due-at instant (UTC).
+//   - `ruleVersion`         rule set the state was derived under (versioned).
+//   - `consecutiveCorrect`  running rule input (consecutive correct answers).
+//   - `latestOutcomeLapsed` whether the latest folded evidence was a lapse
+//                           (drives the deterministic schedule step-down).
+//   - `sourceLastEventAt`   cursor: instant of the latest event folded in.
+//   - `sourceLastEventId`   cursor: public id tiebreak of that latest event.
+//   - `recomputedAt`        server recompute instant (UTC).
+//
+// UNIQUE (actor_id, learning_item_id) — one projection per pair; a recompute
+// OVERWRITES the row (upsert), it never appends a duplicate.
+// ---------------------------------------------------------------------------
+model MasteryProjection {
+  id                   String       @id @default(uuid()) @db.Uuid
+  actorId              String       @map("actor_id") @db.Uuid
+  learningItemId       String       @map("learning_item_id") @db.Uuid
+  state                MasteryState
+  dueAt                DateTime     @map("due_at") @db.Timestamptz(6)
+  ruleVersion          Int          @map("rule_version")
+  consecutiveCorrect   Int          @default(0) @map("consecutive_correct")
+  latestOutcomeLapsed  Boolean      @default(false) @map("latest_outcome_lapsed")
+  sourceLastEventAt    DateTime?    @map("source_last_event_at") @db.Timestamptz(6)
+  sourceLastEventId    String?      @map("source_last_event_id") @db.VarChar(64)
+  recomputedAt         DateTime     @map("recomputed_at") @db.Timestamptz(6)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  actor        User         @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  learningItem LearningItem @relation(fields: [learningItemId], references: [id], onDelete: Cascade)
+
+  @@unique([actorId, learningItemId])
+  @@index([actorId])
+  @@index([dueAt])
+  @@index([state])
+  @@map("mastery_projections")
 }

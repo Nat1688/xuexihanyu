@@ -22,9 +22,10 @@ import { ReportingModule } from './modules/reporting/reporting.module';
  * client) and `FoundationLoggingModule` (CLP-00-10 request/correlation id).
  * `IdentityModule` provides identity/session/role authorization, and
  * `ContentModule` provides the CP-01 content domain, `ExerciseModule` the CP-02
- * exercise boundary and `LearningEventsModule` the CP-03 append-only event
- * foundation. Domain modules beyond those remain EMPTY placeholders: they
- * define a boundary but contain no CP-04+ behavior, schema or persistence.
+ * exercise boundary, `LearningEventsModule` the CP-03 append-only event
+ * foundation, and `MasteryModule` the CP-04 derived mastery/review projection.
+ * Domain modules beyond those remain EMPTY placeholders: they define a boundary
+ * but contain no CP-05+ behavior, schema or persistence.
  */
 @Module({
   imports: [

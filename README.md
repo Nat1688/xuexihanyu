@@ -44,8 +44,8 @@ chinese-learning-foundation/
 │   │           │   └── infrastructure/ # scrypt (memory-hard) hasher
 │   │           ├── content/          # EMPTY placeholder (CP-01)
 │   │           ├── exercise/         # EMPTY placeholder (CP-02)
-│   │           ├── learning-events/  # EMPTY placeholder (CP-03)
-│   │           ├── mastery/          # EMPTY placeholder (CP-04)
+│   │           ├── learning-events/  # CP-03 append-only event foundation
+│   │           ├── mastery/          # CP-04 derived mastery/review projection
 │   │           ├── reporting/        # EMPTY placeholder
 │   │           └── ai/               # EMPTY placeholder (CP-07+)
 │   └── web/                      # React 19 + Vite 6 SPA (TypeScript)
@@ -251,9 +251,11 @@ npm run db:test:validate       # zero->current on clp_test + approved-tables-onl
 ```
 
 See **[`docs/Database/MIGRATIONS.md`](docs/Database/MIGRATIONS.md)** for the full command set,
-the strict reset guard rules, and the append-only / no-`db push` policy, and
+the strict reset guard rules, and the append-only / no-`db push` policy,
 **[`docs/Database/IDENTITY.md`](docs/Database/IDENTITY.md)** for the identity schema and hashing
-boundary.
+boundary, **[`docs/Database/LEARNING-EVENTS.md`](docs/Database/LEARNING-EVENTS.md)** and
+**[`docs/Database/MASTERY.md`](docs/Database/MASTERY.md)** for the CP-03 event store and the
+CP-04 derived mastery projection.
 
 ## Local PostgreSQL
 
