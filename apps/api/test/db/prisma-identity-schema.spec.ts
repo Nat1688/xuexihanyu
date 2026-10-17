@@ -48,6 +48,8 @@ const APPROVED_MODELS = [
   'LessonLearningItem',
   'LearningEvent',
   'MasteryProjection',
+  'AnswerSession',
+  'AnswerSubmission',
 ];
 
 /** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
@@ -63,9 +65,11 @@ const APPROVED_TABLES = [
   'lesson_learning_items',
   'learning_events',
   'mastery_projections',
+  'exercise_sessions',
+  'answer_submissions',
 ];
 
-/** The approved enums (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
+/** The approved enums (CLP-00-05/06 + CP-01 + CP-03 + CP-04 + CP-05). */
 const APPROVED_ENUMS = [
   'AccountState',
   'UserRole',
@@ -73,6 +77,7 @@ const APPROVED_ENUMS = [
   'LearningItemKind',
   'LearningEventType',
   'MasteryState',
+  'ExerciseFormatKind',
 ];
 
 /** The only tables a migration may create, plus Prisma metadata. */

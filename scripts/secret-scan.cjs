@@ -49,6 +49,8 @@ const APPROVED_MODELS = new Set([
   'LessonLearningItem',
   'LearningEvent',
   'MasteryProjection',
+  'AnswerSession',
+  'AnswerSubmission',
 ]);
 // Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
 // learning events, CP-04 mastery projection) + Prisma metadata.
@@ -65,6 +67,8 @@ const APPROVED_TABLES = new Set([
   'units',
   'user_roles',
   'users',
+  'exercise_sessions',
+  'answer_submissions',
 ]);
 
 // Test files that intentionally contain SYNTHETIC fixtures for the config
@@ -90,6 +94,8 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/protected/seed-guard.spec.ts',
   'apps/api/test/db/synthetic-seed.int-spec.ts',
   'apps/api/test/db/bootstrap-admin.int-spec.ts',
+  'apps/api/test/protected/student-service.spec.ts',
+  'apps/api/test/protected/student-loop.e2e-spec.ts',
 ]);
 
 // Forbidden CP-04+ artifacts (should not exist in this skeleton).

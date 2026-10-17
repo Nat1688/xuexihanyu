@@ -1,23 +1,230 @@
 :root {
   color-scheme: light dark;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  --clp-bg: #f7f7f8;
+  --clp-surface: #ffffff;
+  --clp-text: #1b1b1f;
+  --clp-muted: #5a5a66;
+  --clp-border: #c9c9d2;
+  --clp-accent: #1a56b0;
+  --clp-accent-text: #ffffff;
+  --clp-ok: #166534;
+  --clp-bad: #a4161a;
+  --clp-focus: #b45309;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --clp-bg: #14141a;
+    --clp-surface: #1e1e26;
+    --clp-text: #ececf2;
+    --clp-muted: #b0b0c0;
+    --clp-border: #3d3d4a;
+    --clp-accent: #7aa8ff;
+    --clp-accent-text: #10101a;
+    --clp-ok: #6ee7a0;
+    --clp-bad: #ff8a8a;
+    --clp-focus: #fbbf24;
+  }
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: #f7f7f8;
-  color: #1a1a1a;
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #16161a;
-    color: #f2f2f2;
+body {
+  margin: 0;
+  background: var(--clp-bg);
+  color: var(--clp-text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--clp-accent);
+}
+
+/* Always-visible keyboard focus (accessibility baseline). */
+:focus-visible {
+  outline: 3px solid var(--clp-focus);
+  outline-offset: 2px;
+}
+
+.clp-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--clp-surface);
+  color: var(--clp-text);
+  padding: 0.75rem 1rem;
+  z-index: 10;
+}
+
+.clp-skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+.clp-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.clp-card {
+  background: var(--clp-surface);
+  border: 1px solid var(--clp-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-block: 1rem;
+}
+
+.clp-muted {
+  color: var(--clp-muted);
+}
+
+.clp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-block: 0.85rem;
+}
+
+.clp-field label {
+  font-weight: 600;
+}
+
+.clp-input {
+  font: inherit;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--clp-border);
+  border-radius: 8px;
+  background: var(--clp-bg);
+  color: var(--clp-text);
+  min-height: 44px;
+}
+
+.clp-button {
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.75rem 1.1rem;
+  min-height: 44px;
+  min-width: 44px;
+  background: var(--clp-accent);
+  color: var(--clp-accent-text);
+}
+
+.clp-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.clp-button--secondary {
+  background: transparent;
+  color: var(--clp-text);
+  border-color: var(--clp-border);
+}
+
+.clp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.clp-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 0;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.clp-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--clp-border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.clp-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.clp-list li {
+  border: 1px solid var(--clp-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+}
+
+.clp-badge {
+  display: inline-block;
+  font-size: 0.8rem;
+  border: 1px solid var(--clp-border);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  color: var(--clp-muted);
+}
+
+.clp-badge--due {
+  color: var(--clp-bad);
+  border-color: currentColor;
+}
+
+.clp-status {
+  font-weight: 700;
+}
+
+.clp-status--ok {
+  color: var(--clp-ok);
+}
+
+.clp-status--bad {
+  color: var(--clp-bad);
+}
+
+.clp-error {
+  border: 1px solid var(--clp-bad);
+  color: var(--clp-bad);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  margin-block: 0.75rem;
+}
+
+.clp-prompt {
+  font-size: 1.35rem;
+  font-weight: 650;
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 480px) {
+  .clp-shell {
+    padding: 0.75rem;
+  }
+
+  .clp-button {
+    width: 100%;
   }
 }

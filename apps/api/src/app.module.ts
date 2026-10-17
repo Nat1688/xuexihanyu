@@ -13,6 +13,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { LearningEventsModule } from './modules/learning-events/learning-events.module';
 import { MasteryModule } from './modules/mastery/mastery.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
+import { StudentModule } from './modules/student/student.module';
 
 /**
  * Root application module.
@@ -23,7 +24,9 @@ import { ReportingModule } from './modules/reporting/reporting.module';
  * `IdentityModule` provides identity/session/role authorization, and
  * `ContentModule` provides the CP-01 content domain, `ExerciseModule` the CP-02
  * exercise boundary, `LearningEventsModule` the CP-03 append-only event
- * foundation, and `MasteryModule` the CP-04 derived mastery/review projection.
+ * foundation, `MasteryModule` the CP-04 derived mastery/review projection, and
+ * `StudentModule` the CP-05 student loop (TODAY -> CONTINUE -> EXERCISE ->
+ * RESULT -> NEXT) that composes all of the above.
  * Domain modules beyond those remain EMPTY placeholders: they define a boundary
  * but contain no CP-05+ behavior, schema or persistence.
  */
@@ -39,6 +42,7 @@ import { ReportingModule } from './modules/reporting/reporting.module';
     ExerciseModule,
     LearningEventsModule,
     MasteryModule,
+    StudentModule,
     ReportingModule,
     AiModule,
   ],

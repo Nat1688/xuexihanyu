@@ -90,6 +90,7 @@ model User {
   authoredItems   LearningItem[]
   learningEvents  LearningEvent[]
   mastery         MasteryProjection[]
+  answerSessions  AnswerSession[]
 
   @@map("users")
 }
@@ -264,6 +265,7 @@ model Lesson {
   unit  Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
   items LessonLearningItem[]
   events LearningEvent[]
+  answerSessions AnswerSession[]
 
   @@unique([unitId, position])
   @@unique([unitId, slug])
@@ -297,6 +299,7 @@ model LearningItem {
   lessons LessonLearningItem[]
   events  LearningEvent[]
   mastery MasteryProjection[]
+  answerSessions AnswerSession[]
 
   @@index([kind])
   @@map("learning_items")
@@ -454,4 +457,93 @@ model MasteryProjection {
   @@index([dueAt])
   @@index([state])
   @@map("mastery_projections")
+}
+
+// ===========================================================================
+// CP-05 Student MVP — LOGIN -> TODAY -> CONTINUE -> EXERCISE -> RESULT -> NEXT.
+// Two tables ONLY, both LINKAGE/IDEMPOTENCY stores. CP-03 `learning_events`
+// stays the evidence source of truth and CP-04 `mastery_projections` stays the
+// derived TODAY ordering; nothing here replaces either.
+// ===========================================================================
+
+// Closed set of student-facing answer formats (CP-05).
+enum ExerciseFormatKind {
+  MULTIPLE_CHOICE
+  TYPING
+}
+
+// ---------------------------------------------------------------------------
+// answer_sessions — one materialized exercise handed to a learner.
+//
+//   - `publicId`        the only identifier surfaced to the client; opaque.
+//   - `actorId`         the learner the session belongs to (server-derived).
+//   - `lessonId`        the PUBLISHED lesson the exercise was drawn from.
+//   - `learningItemId`  the item exercised.
+//   - `mode`            the CP-02 exercise mode token (content-derived).
+//   - `format`          MULTIPLE_CHOICE | TYPING.
+//   - `prompt`          the question text (approved content only).
+//   - `options`         JSON array for MULTIPLE_CHOICE; NULL otherwise. The
+//                       CORRECT option is NEVER projected to clients before
+//                       submission — the key lives in `answerKey` and stays
+//                       server-side until the learner has answered.
+//   - `answerKey`       server-only correct answer (normalized on evaluate).
+//   - `expiresAt`       bounded lifetime; an expired session is not presentable.
+//
+// The outcome lives in `answer_submissions` (exactly one EFFECTIVE submission),
+// so a RESULT screen re-read is stable and replayable.
+// ---------------------------------------------------------------------------
+model AnswerSession {
+  id             String             @id @default(uuid()) @db.Uuid
+  publicId       String             @unique @default(uuid()) @map("public_id") @db.Uuid
+  actorId        String             @map("actor_id") @db.Uuid
+  lessonId       String             @map("lesson_id") @db.Uuid
+  learningItemId String             @map("learning_item_id") @db.Uuid
+  mode           String             @db.VarChar(40)
+  format         ExerciseFormatKind
+  prompt         String             @db.Text
+  options        Json?
+  answerKey      String             @map("answer_key") @db.Text
+  expiresAt      DateTime           @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor        User               @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  lesson       Lesson             @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  learningItem LearningItem       @relation(fields: [learningItemId], references: [id], onDelete: Cascade)
+  submissions  AnswerSubmission[]
+
+  @@index([actorId, createdAt])
+  @@index([lessonId])
+  @@map("exercise_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// answer_submissions — the outcome of answering a session.
+//
+// Idempotency: UNIQUE (exercise_session_id, submission_token). The client sends
+// a stable token for one answer; replaying the same token returns the SAME
+// result and appends NO new evidence. A different token for an already-answered
+// session is rejected as a conflict (the result is final).
+//
+// `correct`, `feedback`, `expected` and `received` are SAFE to surface AFTER
+// submission only; they are never returned before the learner answers.
+// Evidence linkage: `learningEventPublicId` points at the CP-03 event appended
+// for this submission (audit only; CP-03 remains the source of truth).
+// ---------------------------------------------------------------------------
+model AnswerSubmission {
+  id                    String       @id @default(uuid()) @db.Uuid
+  exerciseSessionId     String       @map("exercise_session_id") @db.Uuid
+  submissionToken       String       @map("submission_token") @db.VarChar(80)
+  submittedAnswer       String       @map("submitted_answer") @db.Text
+  correct               Boolean
+  feedback              String       @db.VarChar(20)
+  expected              String       @db.Text
+  received              String       @db.Text
+  learningEventPublicId String?      @map("learning_event_public_id") @db.Uuid
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  exerciseSession AnswerSession @relation(fields: [exerciseSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseSessionId, submissionToken])
+  @@index([exerciseSessionId])
+  @@map("answer_submissions")
 }
