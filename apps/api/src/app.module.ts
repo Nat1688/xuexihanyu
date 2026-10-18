@@ -14,6 +14,7 @@ import { LearningEventsModule } from './modules/learning-events/learning-events.
 import { MasteryModule } from './modules/mastery/mastery.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { StudentModule } from './modules/student/student.module';
+import { TeacherModule } from './modules/teacher/teacher.module';
 
 /**
  * Root application module.
@@ -26,9 +27,10 @@ import { StudentModule } from './modules/student/student.module';
  * exercise boundary, `LearningEventsModule` the CP-03 append-only event
  * foundation, `MasteryModule` the CP-04 derived mastery/review projection, and
  * `StudentModule` the CP-05 student loop (TODAY -> CONTINUE -> EXERCISE ->
- * RESULT -> NEXT) that composes all of the above.
+ * RESULT -> NEXT) and `TeacherModule` the CP-06 teacher MVP slice (classes,
+ * enrollments, assignments, evidence-backed progress, private notes).
  * Domain modules beyond those remain EMPTY placeholders: they define a boundary
- * but contain no CP-05+ behavior, schema or persistence.
+ * but contain no behavior, schema or persistence.
  */
 @Module({
   imports: [
@@ -43,6 +45,7 @@ import { StudentModule } from './modules/student/student.module';
     LearningEventsModule,
     MasteryModule,
     StudentModule,
+    TeacherModule,
     ReportingModule,
     AiModule,
   ],

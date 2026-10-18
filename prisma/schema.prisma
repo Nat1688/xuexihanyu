@@ -83,14 +83,19 @@ model User {
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  credential      PasswordCredential?
-  roles           UserRoleAssignment[]
-  sessions        Session[]
-  authoredCourses Course[]
-  authoredItems   LearningItem[]
-  learningEvents  LearningEvent[]
-  mastery         MasteryProjection[]
-  answerSessions  AnswerSession[]
+  credential           PasswordCredential?
+  roles                UserRoleAssignment[]
+  sessions             Session[]
+  authoredCourses      Course[]
+  authoredItems        LearningItem[]
+  learningEvents       LearningEvent[]
+  mastery              MasteryProjection[]
+  answerSessions       AnswerSession[]
+  taughtClasses        TeachingClass[]      @relation("TaughtClasses")
+  classEnrollments     ClassEnrollment[]    @relation("ClassEnrollments")
+  lessonAssignments    LessonAssignment[]   @relation("LessonAssignments")
+  authoredTeacherNotes TeacherNote[]        @relation("AuthoredTeacherNotes")
+  studentTeacherNotes  TeacherNote[]        @relation("StudentTeacherNotes")
 
   @@map("users")
 }
@@ -210,7 +215,7 @@ model Course {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  author User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
   units  Unit[]
   events LearningEvent[]
 
@@ -236,7 +241,7 @@ model Unit {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course  Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons Lesson[]
   events  LearningEvent[]
 
@@ -262,10 +267,11 @@ model Lesson {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  unit  Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  items LessonLearningItem[]
-  events LearningEvent[]
+  unit           Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  items          LessonLearningItem[]
+  events         LearningEvent[]
   answerSessions AnswerSession[]
+  assignments    LessonAssignment[]
 
   @@unique([unitId, position])
   @@unique([unitId, slug])
@@ -295,10 +301,10 @@ model LearningItem {
   createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  author  User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  lessons LessonLearningItem[]
-  events  LearningEvent[]
-  mastery MasteryProjection[]
+  author         User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  lessons        LessonLearningItem[]
+  events         LearningEvent[]
+  mastery        MasteryProjection[]
   answerSessions AnswerSession[]
 
   @@index([kind])
@@ -435,19 +441,19 @@ enum MasteryState {
 // OVERWRITES the row (upsert), it never appends a duplicate.
 // ---------------------------------------------------------------------------
 model MasteryProjection {
-  id                   String       @id @default(uuid()) @db.Uuid
-  actorId              String       @map("actor_id") @db.Uuid
-  learningItemId       String       @map("learning_item_id") @db.Uuid
-  state                MasteryState
-  dueAt                DateTime     @map("due_at") @db.Timestamptz(6)
-  ruleVersion          Int          @map("rule_version")
-  consecutiveCorrect   Int          @default(0) @map("consecutive_correct")
-  latestOutcomeLapsed  Boolean      @default(false) @map("latest_outcome_lapsed")
-  sourceLastEventAt    DateTime?    @map("source_last_event_at") @db.Timestamptz(6)
-  sourceLastEventId    String?      @map("source_last_event_id") @db.VarChar(64)
-  recomputedAt         DateTime     @map("recomputed_at") @db.Timestamptz(6)
-  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String       @id @default(uuid()) @db.Uuid
+  actorId             String       @map("actor_id") @db.Uuid
+  learningItemId      String       @map("learning_item_id") @db.Uuid
+  state               MasteryState
+  dueAt               DateTime     @map("due_at") @db.Timestamptz(6)
+  ruleVersion         Int          @map("rule_version")
+  consecutiveCorrect  Int          @default(0) @map("consecutive_correct")
+  latestOutcomeLapsed Boolean      @default(false) @map("latest_outcome_lapsed")
+  sourceLastEventAt   DateTime?    @map("source_last_event_at") @db.Timestamptz(6)
+  sourceLastEventId   String?      @map("source_last_event_id") @db.VarChar(64)
+  recomputedAt        DateTime     @map("recomputed_at") @db.Timestamptz(6)
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   actor        User         @relation(fields: [actorId], references: [id], onDelete: Restrict)
   learningItem LearningItem @relation(fields: [learningItemId], references: [id], onDelete: Cascade)
@@ -530,20 +536,112 @@ model AnswerSession {
 // for this submission (audit only; CP-03 remains the source of truth).
 // ---------------------------------------------------------------------------
 model AnswerSubmission {
-  id                    String       @id @default(uuid()) @db.Uuid
-  exerciseSessionId     String       @map("exercise_session_id") @db.Uuid
-  submissionToken       String       @map("submission_token") @db.VarChar(80)
-  submittedAnswer       String       @map("submitted_answer") @db.Text
+  id                    String   @id @default(uuid()) @db.Uuid
+  exerciseSessionId     String   @map("exercise_session_id") @db.Uuid
+  submissionToken       String   @map("submission_token") @db.VarChar(80)
+  submittedAnswer       String   @map("submitted_answer") @db.Text
   correct               Boolean
-  feedback              String       @db.VarChar(20)
-  expected              String       @db.Text
-  received              String       @db.Text
-  learningEventPublicId String?      @map("learning_event_public_id") @db.Uuid
-  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  feedback              String   @db.VarChar(20)
+  expected              String   @db.Text
+  received              String   @db.Text
+  learningEventPublicId String?  @map("learning_event_public_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   exerciseSession AnswerSession @relation(fields: [exerciseSessionId], references: [id], onDelete: Cascade)
 
   @@unique([exerciseSessionId, submissionToken])
   @@index([exerciseSessionId])
   @@map("answer_submissions")
+}
+
+// ===========================================================================
+// CP-06 — Teacher MVP: classes, enrollments, assignments, private notes.
+//
+// Ownership model (object-level authorization is enforced in the CP-06 service;
+// these tables exist to make it POSSIBLE and cheap to enforce):
+//   - A `teaching_class` is owned by exactly ONE teacher (`owner_id`).
+//   - A `class_enrollment` links an existing user account to a class; UNIQUE
+//     (class_id, student_id) means at most one enrollment per student/class.
+//   - A `lesson_assignment` targets ONE enrolled student for ONE PUBLISHED
+//     lesson; UNIQUE (class_id, student_id, lesson_id) makes assignment
+//     idempotent-by-conflict.
+//   - A `teacher_note` is PRIVATE: authored by one teacher about one enrolled
+//     student in one class. Reads are always filtered by author.
+//
+// Progress is EVIDENCE-BACKED and derives from existing tables only:
+//   - per-item correct/incorrect counts come from `learning_events`
+//     (CP-03, type = ANSWER_SUBMITTED, metadata.outcome) within a bounded window;
+//   - mastery state comes from `mastery_projections` (CP-04).
+// No grade, score, rank, prediction or AI output is ever stored here.
+// ===========================================================================
+model TeachingClass {
+  id        String   @id @default(uuid()) @db.Uuid
+  publicId  String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  ownerId   String   @map("owner_id") @db.Uuid
+  title     String   @db.VarChar(120)
+  term      String?  @db.VarChar(40)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner       User               @relation("TaughtClasses", fields: [ownerId], references: [id], onDelete: Restrict)
+  enrollments ClassEnrollment[]
+  assignments LessonAssignment[]
+  notes       TeacherNote[]
+
+  @@index([ownerId, createdAt])
+  @@map("teaching_classes")
+}
+
+model ClassEnrollment {
+  id         String   @id @default(uuid()) @db.Uuid
+  publicId   String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  classId    String   @map("class_id") @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  enrolledAt DateTime @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  class   TeachingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User          @relation("ClassEnrollments", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([studentId])
+  @@map("class_enrollments")
+}
+
+model LessonAssignment {
+  id        String    @id @default(uuid()) @db.Uuid
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  classId   String    @map("class_id") @db.Uuid
+  studentId String    @map("student_id") @db.Uuid
+  lessonId  String    @map("lesson_id") @db.Uuid
+  dueAt     DateTime? @map("due_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  class   TeachingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User          @relation("LessonAssignments", fields: [studentId], references: [id], onDelete: Cascade)
+  lesson  Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId, lessonId])
+  @@index([classId, studentId])
+  @@index([lessonId])
+  @@map("lesson_assignments")
+}
+
+model TeacherNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  publicId  String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  classId   String   @map("class_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  title     String?  @db.VarChar(120)
+  body      String   @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  author  User          @relation("AuthoredTeacherNotes", fields: [authorId], references: [id], onDelete: Cascade)
+  class   TeachingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User          @relation("StudentTeacherNotes", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, classId, studentId, createdAt])
+  @@map("teacher_notes")
 }

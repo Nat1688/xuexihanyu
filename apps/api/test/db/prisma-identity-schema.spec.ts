@@ -50,6 +50,10 @@ const APPROVED_MODELS = [
   'MasteryProjection',
   'AnswerSession',
   'AnswerSubmission',
+  'TeachingClass',
+  'ClassEnrollment',
+  'LessonAssignment',
+  'TeacherNote',
 ];
 
 /** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
@@ -67,6 +71,10 @@ const APPROVED_TABLES = [
   'mastery_projections',
   'exercise_sessions',
   'answer_submissions',
+  'teaching_classes',
+  'class_enrollments',
+  'lesson_assignments',
+  'teacher_notes',
 ];
 
 /** The approved enums (CLP-00-05/06 + CP-01 + CP-03 + CP-04 + CP-05). */

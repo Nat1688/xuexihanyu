@@ -35,8 +35,9 @@ const ALLOWED_PRISMA_PATHS = [
 ];
 
 // Approved schema: CLP-00-05/06 identity+session, CP-01 content, CP-03 learning
-// events, CP-04 mastery projection. Any other model/table means a later-
-// checkpoint or forbidden schema leaked in.
+// events, CP-04 mastery projection, CP-05 student sessions/submissions, CP-06
+// teacher classes/enrollments/assignments/notes. Any other model/table means a
+// later-checkpoint or forbidden schema leaked in.
 const APPROVED_MODELS = new Set([
   'User',
   'PasswordCredential',
@@ -51,6 +52,11 @@ const APPROVED_MODELS = new Set([
   'MasteryProjection',
   'AnswerSession',
   'AnswerSubmission',
+  // CP-06 teacher MVP: classes, enrollments, assignments, private notes.
+  'TeachingClass',
+  'ClassEnrollment',
+  'LessonAssignment',
+  'TeacherNote',
 ]);
 // Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
 // learning events, CP-04 mastery projection) + Prisma metadata.
@@ -69,6 +75,11 @@ const APPROVED_TABLES = new Set([
   'users',
   'exercise_sessions',
   'answer_submissions',
+  // CP-06 teacher MVP.
+  'teaching_classes',
+  'class_enrollments',
+  'lesson_assignments',
+  'teacher_notes',
 ]);
 
 // Test files that intentionally contain SYNTHETIC fixtures for the config
@@ -96,6 +107,10 @@ const ALLOWLIST_TEST_FILES = new Set([
   'apps/api/test/db/bootstrap-admin.int-spec.ts',
   'apps/api/test/protected/student-service.spec.ts',
   'apps/api/test/protected/student-loop.e2e-spec.ts',
+  // CP-06 teacher MVP — synthetic, inert fixtures only.
+  'apps/api/test/protected/teacher-policy.spec.ts',
+  'apps/api/test/protected/teacher-service.spec.ts',
+  'apps/api/test/protected/teacher-authorization.e2e-spec.ts',
 ]);
 
 // Forbidden CP-04+ artifacts (should not exist in this skeleton).
