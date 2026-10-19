@@ -318,10 +318,8 @@ function buildSlice(seed: 'published' | 'empty'): Slice {
     }),
   };
 
-  let deriveCalls = 0;
   const mastery = {
     deriveForActor: jest.fn(async () => {
-      deriveCalls += 1;
       progress.projections = [
         { learningItemPublicId: 'i1', state: 'LEARNING' as MasteryState, dueAt: NOW },
       ];
