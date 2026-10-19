@@ -111,6 +111,10 @@ describe('session migration is additive (only adds sessions)', () => {
       // CP-05 student MVP: exercise linkage + idempotent submission.
       'exercise_sessions',
       'answer_submissions',
+      'teaching_classes',
+      'class_enrollments',
+      'lesson_assignments',
+      'teacher_notes',
     ]);
     for (const { dir, sql } of allMigrationSql()) {
       for (const table of createdTables(sql)) {
