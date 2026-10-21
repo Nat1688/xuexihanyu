@@ -179,4 +179,11 @@ export const studentApi = {
   async result(sessionId: string): Promise<ResultView> {
     return request<ResultView>('GET', `/student/exercises/${encodeURIComponent(sessionId)}/result`);
   },
+
+  async recoverResult(sessionId: string): Promise<ResultView> {
+    return request<ResultView>(
+      'POST',
+      `/student/exercises/${encodeURIComponent(sessionId)}/result/recover`,
+    );
+  },
 };

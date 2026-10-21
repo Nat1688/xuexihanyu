@@ -39,8 +39,8 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
       const view = await studentApi.exercise(sessionId);
       setExercise(view);
       if (view.alreadyAnswered) {
-        // Reloading an already-answered exercise goes straight to its RESULT.
-        const result = await studentApi.result(sessionId);
+        // Recovery is an explicit CSRF-protected POST; GET RESULT stays read-only.
+        const result = await studentApi.recoverResult(sessionId);
         onResult(result);
       }
     } catch (err) {

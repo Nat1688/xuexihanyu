@@ -36,9 +36,13 @@ export class FakeLearningEventRepository implements LearningEventRepository {
   ) {}
 
   async append(event: NewLearningEvent): Promise<StoredLearningEvent> {
+    if (event.publicId) {
+      const existing = this.rows.find((row) => row.publicId === event.publicId);
+      if (existing) return existing;
+    }
     this.appendCount += 1;
     const stored: StoredLearningEvent = {
-      publicId: this.newPublicId(),
+      publicId: event.publicId ?? this.newPublicId(),
       type: event.type,
       schemaVersion: event.schemaVersion,
       actorPublicId: event.actorPublicId,

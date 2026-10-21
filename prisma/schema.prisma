@@ -537,7 +537,7 @@ model AnswerSession {
 // ---------------------------------------------------------------------------
 model AnswerSubmission {
   id                    String   @id @default(uuid()) @db.Uuid
-  exerciseSessionId     String   @map("exercise_session_id") @db.Uuid
+  exerciseSessionId     String   @unique @map("exercise_session_id") @db.Uuid
   submissionToken       String   @map("submission_token") @db.VarChar(80)
   submittedAnswer       String   @map("submitted_answer") @db.Text
   correct               Boolean
@@ -549,6 +549,8 @@ model AnswerSubmission {
 
   exerciseSession AnswerSession @relation(fields: [exerciseSessionId], references: [id], onDelete: Cascade)
 
+  // Retained for the explicit same-token idempotency contract. The single-column
+  // unique above is the stronger invariant: one effective submission/session.
   @@unique([exerciseSessionId, submissionToken])
   @@index([exerciseSessionId])
   @@map("answer_submissions")

@@ -14,6 +14,8 @@
  * reference must not lose the interaction record).
  */
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { isDeepStrictEqual } from 'node:util';
 
 import { PrismaService } from '../../foundation/prisma.service';
 import {
@@ -23,6 +25,7 @@ import {
   type LearningEventType,
   type NewLearningEvent,
   type StoredLearningEvent,
+  LearningEventConflictError,
 } from '../domain';
 import { type LearningEventRepository } from '../application/learning-event-repository';
 
@@ -72,6 +75,8 @@ const EVENT_SELECT = {
   createdAt: true,
 } as const;
 
+const UNIQUE_VIOLATION = 'P2002';
+
 function asMetadata(value: unknown): EventMetadata {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as EventMetadataType;
@@ -97,6 +102,26 @@ function toStored(row: ResolvedRow): StoredLearningEvent {
     metadata: asMetadata(row.metadata),
     createdAt: row.createdAt,
   };
+}
+
+function isSameAppend(
+  row: EventRow,
+  event: NewLearningEvent,
+  actorId: string,
+  refs: ResolvedRefs,
+): boolean {
+  return (
+    row.type === event.type &&
+    row.schemaVersion === event.schemaVersion &&
+    row.actorId === actorId &&
+    row.courseId === refs.courseId &&
+    row.unitId === refs.unitId &&
+    row.lessonId === refs.lessonId &&
+    row.learningItemId === refs.learningItemId &&
+    row.exerciseRef === refs.exerciseRef &&
+    row.occurredAt.getTime() === event.occurredAt.getTime() &&
+    isDeepStrictEqual(asMetadata(row.metadata), event.metadata)
+  );
 }
 
 @Injectable()
@@ -189,21 +214,43 @@ export class PrismaLearningEventRepository implements LearningEventRepository {
 
     const refs = await this.resolveRefs(event.refs);
 
-    const row = await this.prisma.learningEvent.create({
-      data: {
-        type: event.type,
-        schemaVersion: event.schemaVersion,
-        actorId: actor.id,
-        courseId: refs.courseId,
-        unitId: refs.unitId,
-        lessonId: refs.lessonId,
-        learningItemId: refs.learningItemId,
-        exerciseRef: refs.exerciseRef,
-        occurredAt: event.occurredAt,
-        metadata: (Object.keys(event.metadata).length ? event.metadata : undefined) as never,
-      },
-      select: EVENT_SELECT,
-    });
+    let row: EventRow;
+    try {
+      row = await this.prisma.learningEvent.create({
+        data: {
+          ...(event.publicId ? { publicId: event.publicId } : {}),
+          type: event.type,
+          schemaVersion: event.schemaVersion,
+          actorId: actor.id,
+          courseId: refs.courseId,
+          unitId: refs.unitId,
+          lessonId: refs.lessonId,
+          learningItemId: refs.learningItemId,
+          exerciseRef: refs.exerciseRef,
+          occurredAt: event.occurredAt,
+          metadata: (Object.keys(event.metadata).length ? event.metadata : undefined) as never,
+        },
+        select: EVENT_SELECT,
+      });
+    } catch (error) {
+      if (
+        !event.publicId ||
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== UNIQUE_VIOLATION
+      ) {
+        throw error;
+      }
+
+      const existing = await this.prisma.learningEvent.findUnique({
+        where: { publicId: event.publicId },
+        select: EVENT_SELECT,
+      });
+      if (!existing) throw error;
+      if (!isSameAppend(existing, event, actor.id, refs)) {
+        throw new LearningEventConflictError();
+      }
+      row = existing;
+    }
 
     return toStored(await this.withRefs(row));
   }

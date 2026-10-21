@@ -17,10 +17,12 @@
  */
 import { ExerciseService } from '../../src/modules/exercise/application/exercise-service';
 import { LearningEventService } from '../../src/modules/learning-events/application/learning-event-service';
+import { LearningEventConflictError } from '../../src/modules/learning-events/domain';
 import { MasteryService } from '../../src/modules/mastery/application/mastery-service';
 import { type MasteryState } from '../../src/modules/mastery/domain';
 import {
   StudentAlreadyAnsweredError,
+  StudentConflictError,
   StudentNoContentError,
   StudentSessionExpiredError,
   StudentSessionNotFoundError,
@@ -96,6 +98,7 @@ class FakeProgress implements StudentProgressReader {
 class FakeSessions implements AnswerSessionRepository {
   readonly rows = new Map<string, AnswerSessionRecord>();
   readonly submissions = new Map<string, AnswerSubmissionRecord>();
+  failLinkCount = 0;
   private sequence = 0;
 
   async create(input: NewAnswerSession): Promise<AnswerSessionRecord> {
@@ -149,14 +152,22 @@ class FakeSessions implements AnswerSessionRepository {
   }
 
   async linkEvent(id: string, token: string, eventPublicId: string): Promise<void> {
-    const row = this.submissions.get(id);
-    if (row && row.submissionToken === token) {
-      this.submissions.set(id, { ...row, learningEventPublicId: eventPublicId });
+    if (this.failLinkCount > 0) {
+      this.failLinkCount -= 1;
+      throw new Error('simulated link failure');
     }
+    const row = this.submissions.get(id);
+    if (!row || row.submissionToken !== token) throw new Error('submission not found');
+    this.submissions.set(id, { ...row, learningEventPublicId: eventPublicId });
   }
 }
 
-function harness() {
+interface HarnessOptions {
+  readonly eventFailures?: number;
+  readonly masteryFailures?: number;
+}
+
+function harness(options: HarnessOptions = {}) {
   const content = new FakeStudentContent().add('l1', ['i1', 'i2', 'i3']);
   const exerciseContent = new FakeExerciseContentReader();
   for (const id of ['i1', 'i2', 'i3']) {
@@ -172,16 +183,34 @@ function harness() {
   const progress = new FakeProgress();
   const sessions = new FakeSessions();
 
-  let eventCount = 0;
+  let eventFailures = options.eventFailures ?? 0;
+  const eventRows = new Map<string, { publicId: string }>();
   const events = {
-    record: jest.fn(async () => {
-      eventCount += 1;
-      return { publicId: `e${eventCount}` };
+    record: jest.fn(async (input: { publicId?: unknown }) => {
+      if (eventFailures > 0) {
+        eventFailures -= 1;
+        throw new Error('simulated event append failure');
+      }
+      const publicId = String(input.publicId);
+      const existing = eventRows.get(publicId);
+      if (existing) return existing;
+      // Model a database race: yield, then re-check the unique idempotency key.
+      await Promise.resolve();
+      const raced = eventRows.get(publicId);
+      if (raced) return raced;
+      const stored = { publicId };
+      eventRows.set(publicId, stored);
+      return stored;
     }),
   } as unknown as LearningEventService;
 
+  let masteryFailures = options.masteryFailures ?? 0;
   const mastery = {
     deriveForActor: jest.fn(async () => {
+      if (masteryFailures > 0) {
+        masteryFailures -= 1;
+        throw new Error('simulated mastery failure');
+      }
       progress.deriveCalls += 1;
       progress.projections = [
         { learningItemPublicId: 'i1', state: 'LEARNING' as MasteryState, dueAt: NOW },
@@ -200,7 +229,16 @@ function harness() {
     format: 'TYPING',
   });
 
-  return { service, content, progress, sessions, events, mastery, exerciseContent };
+  return {
+    service,
+    content,
+    progress,
+    sessions,
+    events,
+    eventRows,
+    mastery,
+    exerciseContent,
+  };
 }
 
 // --- tests -----------------------------------------------------------------
@@ -301,15 +339,132 @@ describe('StudentService — RESULT', () => {
   });
 
   it('is idempotent on the same submission token (one piece of evidence)', async () => {
-    const { service, events, sessions } = harness();
+    const { service, events, eventRows, sessions } = harness();
     const exercise = await service.startNextExercise(ACTOR, NOW);
     const first = await service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW);
     const replay = await service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW);
 
     expect(replay).toEqual(first);
     expect(events.record).toHaveBeenCalledTimes(1);
+    expect(eventRows.size).toBe(1);
     expect(sessions.submissions.size).toBe(1);
-    expect(sessions.submissions.get('s1')?.learningEventPublicId).toBe('e1');
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('surfaces append failure and the same-token retry completes missing evidence', async () => {
+    const { service, sessions, eventRows, mastery } = harness({ eventFailures: 1 });
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+
+    await expect(
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ).rejects.toThrow('simulated event append failure');
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).toBeNull();
+    expect(mastery.deriveForActor).not.toHaveBeenCalled();
+
+    const recovered = await service.submitAnswer(
+      ACTOR,
+      exercise.sessionPublicId,
+      TOKEN,
+      'ignored-on-retry',
+      NOW,
+    );
+    expect(recovered.correct).toBe(true);
+    expect(eventRows.size).toBe(1);
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).not.toBeNull();
+    expect(mastery.deriveForActor).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses the appended event when retrying after the audit-link write fails', async () => {
+    const { service, sessions, events, eventRows } = harness();
+    sessions.failLinkCount = 1;
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+
+    await expect(
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ).rejects.toThrow('simulated link failure');
+    expect(eventRows.size).toBe(1);
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).toBeNull();
+
+    await service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW);
+    expect(events.record).toHaveBeenCalledTimes(2);
+    expect(eventRows.size).toBe(1);
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).toBe([...eventRows.keys()][0]);
+  });
+
+  it('concurrent same-token retries converge on one submission and one event', async () => {
+    const { service, sessions, eventRows } = harness();
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+
+    const [left, right] = await Promise.all([
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ]);
+
+    expect(left).toEqual(right);
+    expect(sessions.submissions.size).toBe(1);
+    expect(eventRows.size).toBe(1);
+  });
+
+  it('concurrent different-token submissions leave exactly one effective answer', async () => {
+    const { service, sessions, eventRows } = harness();
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+
+    const settled = await Promise.allSettled([
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, `${TOKEN}-other`, 'nope', NOW),
+    ]);
+
+    expect(settled.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(settled.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(sessions.submissions.size).toBe(1);
+    expect(eventRows.size).toBe(1);
+  });
+
+  it('keeps evidence linked when mastery fails and re-derives it on retry', async () => {
+    const { service, sessions, events, eventRows, mastery } = harness({ masteryFailures: 1 });
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+
+    await expect(
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ).rejects.toThrow('simulated mastery failure');
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).not.toBeNull();
+    expect(eventRows.size).toBe(1);
+
+    await service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW);
+    expect(events.record).toHaveBeenCalledTimes(1);
+    expect(mastery.deriveForActor).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps GET RESULT read-only and repairs a partial submission through explicit recovery', async () => {
+    const { service, sessions, events, eventRows, mastery } = harness({ eventFailures: 1 });
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+    await expect(
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ).rejects.toThrow('simulated event append failure');
+
+    const read = await service.getResult(ACTOR, exercise.sessionPublicId, NOW);
+    expect(read.correct).toBe(true);
+    expect(events.record).toHaveBeenCalledTimes(1);
+    expect(mastery.deriveForActor).not.toHaveBeenCalled();
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).toBeNull();
+
+    const [left, right] = await Promise.all([
+      service.recoverResult(ACTOR, exercise.sessionPublicId, NOW),
+      service.recoverResult(ACTOR, exercise.sessionPublicId, NOW),
+    ]);
+    expect(left).toEqual(right);
+    expect(eventRows.size).toBe(1);
+    expect(sessions.submissions.get('s1')?.learningEventPublicId).not.toBeNull();
+  });
+
+  it('maps a semantic event-id collision to a safe student conflict', async () => {
+    const { service, events } = harness();
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+    (events.record as jest.Mock).mockRejectedValueOnce(new LearningEventConflictError());
+
+    await expect(
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ).rejects.toBeInstanceOf(StudentConflictError);
   });
 
   it('refuses a DIFFERENT token for an already-answered session', async () => {
