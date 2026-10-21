@@ -11,6 +11,7 @@ import {
 } from '../../src/modules/learning-events/domain';
 import { PrismaLearningEventRepository } from '../../src/modules/learning-events/infrastructure/prisma-learning-event.repository';
 import { MasteryService } from '../../src/modules/mastery/application/mastery-service';
+import { PrismaMasteryDerivationLock } from '../../src/modules/mastery/infrastructure/prisma-mastery-derivation.lock';
 import { PrismaMasteryEventReader } from '../../src/modules/mastery/infrastructure/prisma-mastery-event.reader';
 import { PrismaMasteryProjectionRepository } from '../../src/modules/mastery/infrastructure/prisma-mastery-projection.repository';
 import { StudentService } from '../../src/modules/student/application/student-service';
@@ -48,6 +49,7 @@ describeDb('CP-05 integrity remediation (PostgreSQL 17)', () => {
   const mastery = new MasteryService({
     events: new PrismaMasteryEventReader(prismaService),
     projections: new PrismaMasteryProjectionRepository(prismaService),
+    lock: new PrismaMasteryDerivationLock(prismaService),
   });
   const progress = new PrismaStudentProgressReader(prismaService);
   const actorIds: string[] = [];
@@ -378,5 +380,88 @@ describeDb('CP-05 integrity remediation (PostgreSQL 17)', () => {
         }),
       ).resolves.toBe(1);
     }
+  });
+
+  it('late evidence recovery replays A and B in historical order without cursor loss', async () => {
+    const f = await fixture();
+    const baseSession = await prisma.answerSession.findUniqueOrThrow({
+      where: { publicId: f.sessionPublicId },
+    });
+    const sessionB = await prisma.answerSession.create({
+      data: {
+        actorId: baseSession.actorId,
+        lessonId: baseSession.lessonId,
+        learningItemId: baseSession.learningItemId,
+        mode: baseSession.mode,
+        format: baseSession.format,
+        prompt: baseSession.prompt,
+        options: baseSession.options ?? undefined,
+        answerKey: baseSession.answerKey,
+        expiresAt: baseSession.expiresAt,
+      },
+    });
+    const t1 = new Date('2026-10-20T09:00:00.000Z');
+    const t2 = new Date('2026-10-20T09:10:00.000Z');
+    const t3 = new Date('2026-10-20T09:20:00.000Z');
+    const tokenA = `late-a-${tag()}`;
+    const tokenB = `late-b-${tag()}`;
+    await prisma.answerSubmission.create({
+      data: {
+        exerciseSessionId: baseSession.id,
+        submissionToken: tokenA,
+        submittedAnswer: '你',
+        correct: true,
+        feedback: 'CORRECT',
+        expected: '你',
+        received: '你',
+        createdAt: t1,
+      },
+    });
+    await prisma.answerSubmission.create({
+      data: {
+        exerciseSessionId: sessionB.id,
+        submissionToken: tokenB,
+        submittedAnswer: '你',
+        correct: true,
+        feedback: 'CORRECT',
+        expected: '你',
+        received: '你',
+        createdAt: t2,
+      },
+    });
+
+    const actor = { publicId: f.actorPublicId, roles: ['STUDENT'] as const };
+    const failedAppend = {
+      record: async () => {
+        throw new Error('simulated delayed append');
+      },
+    } as unknown as LearningEventService;
+    await expect(
+      recoveryService(sessions, failedAppend, mastery).recoverResult(actor, f.sessionPublicId, t1),
+    ).rejects.toThrow('simulated delayed append');
+
+    await recoveryService().recoverResult(actor, sessionB.publicId, t2);
+    const beforeRecovery = await prisma.masteryProjection.findFirstOrThrow({
+      where: { actorId: f.actorId, learningItemId: f.itemId },
+    });
+
+    await recoveryService().recoverResult(actor, f.sessionPublicId, t3);
+    const evidence = await prisma.learningEvent.findMany({
+      where: { actorId: f.actorId, learningItemId: f.itemId },
+      orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+    });
+    expect(evidence.map((event) => event.occurredAt.toISOString())).toEqual([
+      t1.toISOString(),
+      t2.toISOString(),
+    ]);
+    expect(beforeRecovery.sourceLastEventId).toBe(evidence[1].publicId);
+
+    const incremental = await mastery.deriveForActor(f.actorPublicId, t3);
+    const repeated = await mastery.deriveForActor(f.actorPublicId, t3);
+    const replayed = await mastery.replay(f.actorPublicId, t3);
+    expect(incremental).toEqual(repeated);
+    expect(repeated).toEqual(replayed);
+    expect(replayed[0].consecutiveCorrect).toBe(2);
+    expect(replayed[0].lastEventPublicId).toBe(evidence[1].publicId);
   });
 });

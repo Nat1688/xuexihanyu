@@ -14,6 +14,7 @@
 import { type StoredLearningEvent } from '../../src/modules/learning-events/domain';
 import { orderEvents } from '../../src/modules/learning-events/domain';
 import { type MasteryEventReader } from '../../src/modules/mastery/application/mastery-event-reader';
+import { type MasteryDerivationLock } from '../../src/modules/mastery/application/mastery-derivation-lock';
 import {
   type MasteryProjectionRepository,
   type ProjectionKey,
@@ -132,6 +133,10 @@ export function makeMasteryService(events: readonly StoredLearningEvent[] = []):
 } {
   const reader = new FakeMasteryEventReader(events);
   const store = new FakeMasteryProjectionRepository();
-  const deps: MasteryServiceDeps = { events: reader, projections: store };
+  const lock: MasteryDerivationLock = {
+    runExclusive: async (_actorPublicId, operation) =>
+      operation({ events: reader, projections: store }),
+  };
+  const deps: MasteryServiceDeps = { events: reader, projections: store, lock };
   return { service: new MasteryService(deps), events: reader, projections: store };
 }

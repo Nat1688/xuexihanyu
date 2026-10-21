@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { ApiError, studentApi, type Principal, type ResultView } from './api/client';
 import { ExerciseScreen } from './screens/ExerciseScreen';
+import { forgetExercise, recalledExercise, rememberExercise } from './exercise-resume';
 import { LoginScreen } from './screens/LoginScreen';
 import { ResultScreen } from './screens/ResultScreen';
 import { TodayScreen } from './screens/TodayScreen';
@@ -37,7 +38,12 @@ export function App() {
         const me = await studentApi.me();
         if (cancelled) return;
         setPrincipal(me);
-        setStep({ view: me ? 'today' : 'login' });
+        const resumable = me ? recalledExercise(sessionStorage) : null;
+        setStep(
+          me && resumable
+            ? { view: 'exercise', sessionId: resumable }
+            : { view: me ? 'today' : 'login' },
+        );
       } catch {
         if (!cancelled) setStep({ view: 'login' });
       }
@@ -48,6 +54,7 @@ export function App() {
   }, []);
 
   const toLogin = useCallback(() => {
+    forgetExercise(sessionStorage);
     setPrincipal(null);
     setNextError(null);
     setStep({ view: 'login' });
@@ -58,6 +65,7 @@ export function App() {
     setNextError(null);
     try {
       const exercise = await studentApi.next();
+      rememberExercise(sessionStorage, exercise.sessionId);
       setStep({ view: 'exercise', sessionId: exercise.sessionId });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -76,6 +84,7 @@ export function App() {
   }, [toLogin]);
 
   const onResult = useCallback((result: ResultView) => {
+    if (result.integrityStatus === 'COMPLETE') forgetExercise(sessionStorage);
     setNextError(null);
     setStep({ view: 'result', result });
   }, []);
@@ -115,7 +124,10 @@ export function App() {
             <ExerciseScreen
               sessionId={step.sessionId}
               onResult={onResult}
-              onExpired={() => setStep({ view: 'today' })}
+              onExpired={() => {
+                forgetExercise(sessionStorage);
+                setStep({ view: 'today' });
+              }}
             />
           ) : null}
 

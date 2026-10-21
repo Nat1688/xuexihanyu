@@ -110,6 +110,7 @@ function projectResult(view: ResultView): Record<string, unknown> {
     expected: view.expected,
     received: view.received,
     submittedAt: view.submittedAt.toISOString(),
+    integrityStatus: view.integrityStatus,
     next: view.next,
   };
 }

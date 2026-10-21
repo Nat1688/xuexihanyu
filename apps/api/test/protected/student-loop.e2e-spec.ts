@@ -518,6 +518,7 @@ describe('student HTTP loop (isolated slice, no DB)', () => {
       expect(res.body.correct).toBe(true);
       expect(res.body.expected).toBe('i1');
       expect(res.body.received).toBe('i1');
+      expect(res.body.integrityStatus).toBe('COMPLETE');
       expect(res.headers['cache-control']).toBe('no-store');
       expect(slice.events.record).toHaveBeenCalledTimes(1);
     });
@@ -564,6 +565,7 @@ describe('student HTTP loop (isolated slice, no DB)', () => {
         .set('Cookie', cookie.student)
         .expect(200);
       expect(first.headers['cache-control']).toBe('no-store');
+      expect(first.body.integrityStatus).toBe('RECOVERY_REQUIRED');
       expect(slice.events.record).toHaveBeenCalledTimes(eventCallsBeforeGet);
       expect(slice.mastery.deriveForActor).toHaveBeenCalledTimes(masteryCallsBeforeGet);
       const replay = await ctx.http

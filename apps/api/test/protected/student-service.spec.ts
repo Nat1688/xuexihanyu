@@ -430,6 +430,10 @@ describe('StudentService — RESULT', () => {
     expect(sessions.submissions.get('s1')?.learningEventPublicId).not.toBeNull();
     expect(eventRows.size).toBe(1);
 
+    const partial = await service.getResult(ACTOR, exercise.sessionPublicId, NOW);
+    expect(partial.integrityStatus).toBe('RECOVERY_REQUIRED');
+    expect(mastery.deriveForActor).toHaveBeenCalledTimes(1);
+
     await service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW);
     expect(events.record).toHaveBeenCalledTimes(1);
     expect(mastery.deriveForActor).toHaveBeenCalledTimes(2);
@@ -444,6 +448,7 @@ describe('StudentService — RESULT', () => {
 
     const read = await service.getResult(ACTOR, exercise.sessionPublicId, NOW);
     expect(read.correct).toBe(true);
+    expect(read.integrityStatus).toBe('RECOVERY_REQUIRED');
     expect(events.record).toHaveBeenCalledTimes(1);
     expect(mastery.deriveForActor).not.toHaveBeenCalled();
     expect(sessions.submissions.get('s1')?.learningEventPublicId).toBeNull();
@@ -453,6 +458,7 @@ describe('StudentService — RESULT', () => {
       service.recoverResult(ACTOR, exercise.sessionPublicId, NOW),
     ]);
     expect(left).toEqual(right);
+    expect(left.integrityStatus).toBe('COMPLETE');
     expect(eventRows.size).toBe(1);
     expect(sessions.submissions.get('s1')?.learningEventPublicId).not.toBeNull();
   });

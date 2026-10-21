@@ -75,6 +75,7 @@ export interface ResultView {
   expected: string;
   received: string;
   submittedAt: string;
+  integrityStatus: 'COMPLETE' | 'RECOVERY_REQUIRED';
   next: { action: string; remaining: number; completedToday: number };
 }
 

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, studentApi, type ExerciseView, type ResultView } from '../api/client';
+import { loadRememberedExercise, submitRememberedExercise } from '../exercise-resume';
 
 export interface ExerciseScreenProps {
   sessionId: string;
@@ -36,11 +37,10 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
     setLoading(true);
     setError(null);
     try {
-      const view = await studentApi.exercise(sessionId);
-      setExercise(view);
-      if (view.alreadyAnswered) {
-        // Recovery is an explicit CSRF-protected POST; GET RESULT stays read-only.
-        const result = await studentApi.recoverResult(sessionId);
+      const loaded = await loadRememberedExercise(studentApi, sessionStorage, sessionId);
+      setExercise(loaded.exercise);
+      if (loaded.result) {
+        const result = loaded.result;
         onResult(result);
       }
     } catch (err) {
@@ -64,7 +64,13 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
     setSubmitting(true);
     setError(null);
     try {
-      const result = await studentApi.answer(sessionId, tokenRef.current, answer);
+      const result = await submitRememberedExercise(
+        studentApi,
+        sessionStorage,
+        sessionId,
+        tokenRef.current,
+        answer,
+      );
       onResult(result);
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 410)) {

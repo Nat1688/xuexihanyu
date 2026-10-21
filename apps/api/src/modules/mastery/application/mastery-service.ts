@@ -8,11 +8,10 @@
  *
  * Three use-cases, all PURE-FUNCTION driven by the domain reducer:
  *
- *   - `deriveForActor(actorPublicId, recomputedAt)` — INCREMENTAL: for each
- *     learning item the actor has evidence for, fold only events AFTER the
- *     stored projection's source-event cursor onto the existing projection,
- *     then replace the row. Idempotent: re-running with no new events leaves an
- *     equal projection.
+ *   - `deriveForActor(actorPublicId, recomputedAt)` — SAFE REFOLD: serialize
+ *     derivation per actor, then fold every ordered event for each item and
+ *     replace the row. Re-folding is required because delayed evidence retains
+ *     its historical occurredAt and can arrive behind the stored cursor.
  *   - `replay(actorPublicId, recomputedAt)` — full re-derivation for one actor
  *     from ALL their ordered events, IGNORING the stored cursor (a rebuild
  *     scoped to one actor). Produces the same rows as an incremental pass.
@@ -28,51 +27,63 @@
 import { orderEvents } from '../../learning-events/domain';
 import { type StoredLearningEvent } from '../../learning-events/domain';
 import {
-  applyEvent,
   deriveProjection,
   groupKeyedEvents,
-  initialProjection,
-  withRecomputedAt,
   type MasteryEvidenceEvent,
   type MasteryProjection,
 } from '../domain';
 import { type MasteryEventReader } from './mastery-event-reader';
+import { type MasteryDerivationLock } from './mastery-derivation-lock';
 import { type MasteryProjectionRepository } from './mastery-projection-repository';
 
 export interface MasteryServiceDeps {
   readonly events: MasteryEventReader;
   readonly projections: MasteryProjectionRepository;
+  /** Production supplies a PostgreSQL-backed cross-process actor lock. */
+  readonly lock: MasteryDerivationLock;
 }
 
 export class MasteryService {
   constructor(private readonly deps: MasteryServiceDeps) {}
 
   /**
-   * INCREMENTAL derivation for one actor. For each item with evidence, fold
-   * only events strictly after the stored cursor onto the existing projection,
-   * then replace the row. Items with no stored row start from the empty
-   * projection. Idempotent and deterministic. Read-only over events.
+   * Derive one actor under the configured cross-process lock. Each item is
+   * re-folded from all ordered evidence so delayed historical events cannot be
+   * skipped. Idempotent and deterministic. Read-only over events.
    */
   async deriveForActor(actorPublicId: string, recomputedAt: Date): Promise<MasteryProjection[]> {
-    const events = orderEvents(await this.deps.events.listByActor(actorPublicId));
+    return this.deps.lock.runExclusive(actorPublicId, (resources) =>
+      this.deriveForActorUnlocked(
+        actorPublicId,
+        recomputedAt,
+        resources.events,
+        resources.projections,
+      ),
+    );
+  }
+
+  private async deriveForActorUnlocked(
+    actorPublicId: string,
+    recomputedAt: Date,
+    eventsReader: MasteryEventReader,
+    projectionRepository: MasteryProjectionRepository,
+  ): Promise<MasteryProjection[]> {
+    const events = orderEvents(await eventsReader.listByActor(actorPublicId));
     const groups = groupKeyedEvents(asEvidence(events));
 
     const results: MasteryProjection[] = [];
     for (const group of groups.values()) {
       if (group.actorPublicId !== actorPublicId) continue;
-      const existing = await this.deps.projections.find({
+      // Re-fold the complete ordered group. An event may be appended late with
+      // its original historical occurredAt, so a timestamp cursor alone cannot
+      // distinguish it from evidence already folded on an earlier pass.
+      const projection = deriveProjection(
         actorPublicId,
-        learningItemPublicId: group.learningItemPublicId,
-      });
-
-      let projection = existing ?? initialProjection(actorPublicId, group.learningItemPublicId);
-
-      for (const event of group.events) {
-        if (!isAfterCursor(event, projection)) continue;
-        projection = applyEvent(projection, event, recomputedAt);
-      }
-      const finalized = withRecomputedAt(projection, recomputedAt);
-      results.push(await this.deps.projections.replace(finalized));
+        group.learningItemPublicId,
+        group.events,
+        recomputedAt,
+      );
+      results.push(await projectionRepository.replace(projection));
     }
     return results;
   }
@@ -141,18 +152,4 @@ export class MasteryService {
 /** View stored CP-03 events as mastery evidence (read-only; no field is written). */
 function asEvidence(events: readonly StoredLearningEvent[]): MasteryEvidenceEvent[] {
   return events as readonly StoredLearningEvent[] as unknown as MasteryEvidenceEvent[];
-}
-
-/**
- * Is the event strictly AFTER the projection's source-event cursor
- * `(lastEventAt, lastEventPublicId)`? Uses the SAME total order as event
- * ordering so incremental folding is reproducible.
- */
-function isAfterCursor(event: MasteryEvidenceEvent, projection: MasteryProjection): boolean {
-  if (!projection.lastEventAt) return true;
-  const cursorMs = projection.lastEventAt.getTime();
-  const eventMs = event.occurredAt.getTime();
-  if (eventMs !== cursorMs) return eventMs > cursorMs;
-  const cursorId = projection.lastEventPublicId ?? '';
-  return event.publicId > cursorId;
 }

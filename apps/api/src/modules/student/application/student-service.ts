@@ -120,6 +120,8 @@ export interface ResultView {
   readonly expected: string;
   readonly received: string;
   readonly submittedAt: Date;
+  /** Whether the durable evidence + mastery suffix completed for this response. */
+  readonly integrityStatus: 'COMPLETE' | 'RECOVERY_REQUIRED';
   readonly next: {
     readonly action: NextAction;
     readonly remaining: number;
@@ -305,7 +307,7 @@ export class StudentService {
     // failure: complete any missing evidence/link/projection before success.
     if (submission && submission.submissionToken === submissionToken) {
       const completed = await this.ensureSubmissionComplete(actor, session, submission, now);
-      return this.toResultView(session, completed, await this.computeNext(actor, now));
+      return this.toResultView(session, completed, await this.computeNext(actor, now), 'COMPLETE');
     }
     if (submission) throw new StudentAlreadyAnsweredError();
 
@@ -347,7 +349,7 @@ export class StudentService {
     const completed = await this.ensureSubmissionComplete(actor, session, stored, now);
 
     const next = await this.computeNext(actor, now);
-    return this.toResultView(session, completed, next);
+    return this.toResultView(session, completed, next, 'COMPLETE');
   }
 
   /** Re-read a RESULT (stable across reloads; owner-only). */
@@ -355,7 +357,16 @@ export class StudentService {
     this.assertStudent(actor);
     const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
     if (!found || !found.submission) throw new StudentSessionNotFoundError();
-    return this.toResultView(found.session, found.submission, await this.computeNext(actor, now));
+    // A read cannot prove that a prior mastery write completed without adding
+    // new durable state. Be conservative: expose the stored verdict, but never
+    // claim the submission pipeline is synchronized. The explicit POST repair
+    // path returns COMPLETE only after derivation succeeds.
+    return this.toResultView(
+      found.session,
+      found.submission,
+      await this.computeNext(actor, now),
+      'RECOVERY_REQUIRED',
+    );
   }
 
   /**
@@ -377,7 +388,12 @@ export class StudentService {
       found.submission,
       now,
     );
-    return this.toResultView(found.session, completed, await this.computeNext(actor, now));
+    return this.toResultView(
+      found.session,
+      completed,
+      await this.computeNext(actor, now),
+      'COMPLETE',
+    );
   }
 
   // --- helpers -----------------------------------------------------------
@@ -522,6 +538,7 @@ export class StudentService {
     session: AnswerSessionRecord,
     submission: AnswerSubmissionRecord,
     next: ResultView['next'],
+    integrityStatus: ResultView['integrityStatus'],
   ): ResultView {
     return {
       sessionPublicId: session.publicId,
@@ -530,6 +547,7 @@ export class StudentService {
       expected: submission.expected,
       received: submission.received,
       submittedAt: submission.createdAt,
+      integrityStatus,
       next,
     };
   }
