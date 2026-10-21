@@ -34,7 +34,10 @@
     "seed:dry-run": "node scripts/seed/db-seed-synthetic.cjs --dry-run",
     "bootstrap:admin": "node scripts/seed/db-bootstrap-admin.cjs",
     "bootstrap:admin:dry-run": "node scripts/seed/db-bootstrap-admin.cjs --dry-run",
-    "secret-scan": "node scripts/secret-scan.cjs"
+    "secret-scan": "node scripts/secret-scan.cjs",
+    "demo:local": "node scripts/seed/db-seed-demo.cjs",
+    "demo:local:dry-run": "node scripts/seed/db-seed-demo.cjs --dry-run",
+    "demo:local:verify": "node scripts/seed/demo-live-verify.cjs"
   },
   "devDependencies": {
     "prisma": "^6.19.3"

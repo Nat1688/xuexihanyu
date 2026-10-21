@@ -286,6 +286,25 @@ describe('StudentService — TODAY', () => {
 });
 
 describe('StudentService — CONTINUE / EXERCISE', () => {
+  it('generates the due queue item even when it is last in lesson order', async () => {
+    const { service, progress, sessions } = harness();
+    progress.projections = [
+      { learningItemPublicId: 'i3', state: 'LEARNING', dueAt: new Date(NOW.getTime() - 1000) },
+    ];
+    const view = await service.startNextExercise(ACTOR, NOW);
+    expect(view.prompt).toBe('m-i3');
+    expect(sessions.rows.get(view.sessionPublicId)?.learningItemPublicId).toBe('i3');
+    expect(sessions.rows.get(view.sessionPublicId)?.answerKey).toBe('i3');
+  });
+
+  it('continues to the second queue item after a completed submission', async () => {
+    const { service, progress, sessions } = harness();
+    progress.submissions = 1;
+    const view = await service.startNextExercise(ACTOR, NOW);
+    expect(sessions.rows.get(view.sessionPublicId)?.learningItemPublicId).toBe('i2');
+    expect(view.prompt).toBe('m-i2');
+  });
+
   it('issues a session without the answer key and persists it', async () => {
     const { service, sessions } = harness();
     const view = await service.startNextExercise(ACTOR, NOW);

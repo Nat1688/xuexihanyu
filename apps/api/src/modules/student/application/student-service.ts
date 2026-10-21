@@ -239,11 +239,15 @@ export class StudentService {
     const candidate = pickExerciseItem(pool.slice(0, goal), completedToday);
     if (!candidate) throw new StudentNoContentError();
 
+    // Queue priority is independent of lesson position. CP-02 generates in
+    // lesson order, so a one-item batch may omit the selected queue item.
+    const lessonItems = await this.deps.content.listPublishedLessonItems(candidate.lessonPublicId);
+    if (!lessonItems?.length) throw new StudentNoContentError();
     const batch = await this.deps.exercises.generate({
       lessonPublicId: candidate.lessonPublicId,
       mode: this.deps.mode ?? 'VI_TO_ZH',
       format: this.deps.format ?? 'TYPING',
-      limit: 1,
+      limit: lessonItems.length,
       distractors: this.deps.distractors ?? 3,
       seed: candidate.itemPublicId,
     });
