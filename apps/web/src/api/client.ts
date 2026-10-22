@@ -98,7 +98,7 @@ function readCookie(name: string): string | null {
   return null;
 }
 
-async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (method === 'POST') {
@@ -109,6 +109,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
   const response = await fetch(`${baseUrl()}${path}`, {
     method,
     credentials: 'include',
+    cache: 'no-store',
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });

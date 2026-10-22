@@ -1,13 +1,13 @@
 /**
  * CLP SPA root (CP-00 skeleton + CP-05 student MVP).
  *
- * One authenticated path only:
+ * Student path:
  *   LOGIN → TODAY → CONTINUE → EXERCISE → RESULT → NEXT
  *
- * State is held in memory (no tokens in web storage). On mount the SPA asks
- * `/auth/me` whether a cookie session already exists, so a reload lands on
- * TODAY rather than forcing a re-login. Every privileged call is authorised
- * server-side (role guard) — this component never decides access.
+ * TW-01 adds an API-backed Teacher workspace. Role hints select navigation,
+ * never permissions. On reload `/auth/me` restores the cookie session; only
+ * the Student exercise identifier may be retained, never Teacher data/tokens.
+ * All privileged calls are independently authorised server-side.
  */
 import { useCallback, useEffect, useState } from 'react';
 
@@ -17,11 +17,15 @@ import { forgetExercise, recalledExercise, rememberExercise } from './exercise-r
 import { LoginScreen } from './screens/LoginScreen';
 import { ResultScreen } from './screens/ResultScreen';
 import { TodayScreen } from './screens/TodayScreen';
+import { TeacherWorkspace } from './teacher/TeacherWorkspace';
+import { canStudy, canTeach } from './teacher/model';
 
 type Step =
   | { view: 'boot' }
   | { view: 'login' }
   | { view: 'today' }
+  | { view: 'teacher' }
+  | { view: 'unauthorized' }
   | { view: 'exercise'; sessionId: string }
   | { view: 'result'; result: ResultView };
 
@@ -38,11 +42,19 @@ export function App() {
         const me = await studentApi.me();
         if (cancelled) return;
         setPrincipal(me);
-        const resumable = me ? recalledExercise(sessionStorage) : null;
+        const resumable = me && canStudy(me) ? recalledExercise(sessionStorage) : null;
         setStep(
           me && resumable
             ? { view: 'exercise', sessionId: resumable }
-            : { view: me ? 'today' : 'login' },
+            : {
+                view: me
+                  ? canTeach(me)
+                    ? 'teacher'
+                    : canStudy(me)
+                      ? 'today'
+                      : 'unauthorized'
+                  : 'login',
+              },
         );
       } catch {
         if (!cancelled) setStep({ view: 'login' });
@@ -94,11 +106,34 @@ export function App() {
       <a className="clp-skip-link" href="#clp-main">
         Skip to main content
       </a>
-      <div className="clp-shell">
+      <div className={step.view === 'teacher' ? 'clp-shell tw-shell' : 'clp-shell'}>
         <header>
           <p className="clp-muted" style={{ margin: 0 }}>
             CLP — Chinese Learning Platform
           </p>
+          {principal && canTeach(principal) && canStudy(principal) ? (
+            <nav className="clp-actions" aria-label="Workspace switcher">
+              <button
+                className="clp-button clp-button--secondary"
+                aria-pressed={step.view === 'teacher'}
+                onClick={() => setStep({ view: 'teacher' })}
+              >
+                Teacher
+              </button>
+              <button
+                className="clp-button clp-button--secondary"
+                aria-pressed={step.view !== 'teacher'}
+                onClick={() => {
+                  const resumable = recalledExercise(sessionStorage);
+                  setStep(
+                    resumable ? { view: 'exercise', sessionId: resumable } : { view: 'today' },
+                  );
+                }}
+              >
+                Student
+              </button>
+            </nav>
+          ) : null}
         </header>
         <main id="clp-main" tabIndex={-1}>
           {step.view === 'boot' ? <p role="status">Loading…</p> : null}
@@ -107,9 +142,19 @@ export function App() {
             <LoginScreen
               onAuthenticated={(p) => {
                 setPrincipal(p);
-                setStep({ view: 'today' });
+                setStep({ view: canTeach(p) ? 'teacher' : canStudy(p) ? 'today' : 'unauthorized' });
               }}
             />
+          ) : null}
+
+          {step.view === 'teacher' && principal ? (
+            <TeacherWorkspace key={principal.publicId} principal={principal} onExpired={toLogin} />
+          ) : null}
+          {step.view === 'unauthorized' ? (
+            <p role="alert">
+              No Student or Teacher workspace is available for this account. Contact your
+              administrator.
+            </p>
           ) : null}
 
           {step.view === 'today' && principal ? (

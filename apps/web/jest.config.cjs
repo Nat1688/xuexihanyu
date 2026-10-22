@@ -2,9 +2,9 @@ module.exports = {
   rootDir: '.',
   testEnvironment: 'node',
   roots: ['<rootDir>/test'],
-  testRegex: '\\.spec\\.ts$',
+  testRegex: '\\.spec\\.tsx?$',
   transform: {
-    '^.+\\.ts$': [
+    '^.+\\.tsx?$': [
       'ts-jest',
       {
         tsconfig: {
@@ -12,6 +12,8 @@ module.exports = {
           module: 'CommonJS',
           strict: true,
           esModuleInterop: true,
+          jsx: 'react-jsx',
+          skipLibCheck: true,
         },
       },
     ],

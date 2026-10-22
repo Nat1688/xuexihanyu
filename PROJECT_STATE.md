@@ -1,4 +1,24 @@
-# XueXiHanyu project state — DS-01 review draft
+# XueXiHanyu project state — TW-01 independent review
+
+Current baseline: local Main `0964b33b6771166b972209effda95e0c80e44ab0`.
+CP-05 and DS-01 are integrated locally; no push/deployment is implied.
+TW-01 is uncommitted on `codex/tw01-teacher-web-mvp` in a separate worktree.
+Main, preservation branch and Legacy Sandbox are outside this task's writes.
+
+TW-01 adds a React Teacher workspace using the existing CP-06 Teacher and
+CP-01 read-only Content APIs: owned classes, create class, roster, per-student
+assignments/progress/evidence, and published lesson assignment. No backend,
+schema, migration, dependency, demo seed or AI changes. Existing session/CSRF
+client is reused; dual-role accounts may switch workspaces. Teacher data is
+memory-only. See `docs/Review/TW-01-REVIEW.md` for mapping, tests and API gaps.
+
+Teacher enrollment search, class-wide assignment lists/completion status,
+mastery rule/version and weak-item labels are absent from the current API.
+TW-01 does not invent those fields. Notes/enrollment APIs exist but their UI
+is deferred; no backend expansion is authorized. Owner review is required
+before any commit, merge, push or next checkpoint.
+
+## Historical DS-01 review snapshot (unchanged below)
 
 Baseline: local Main `0501f9cd97ba139cb5c7feb18d04000398003cc9`.
 DS-01 branch: `codex/ds01-demo-seed-recovery`, separate worktree, uncommitted.
