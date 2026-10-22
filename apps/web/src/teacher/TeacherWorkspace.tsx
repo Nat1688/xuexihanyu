@@ -19,11 +19,21 @@ type Page =
 export function TeacherWorkspace({
   principal,
   onExpired,
+  onBusyChange,
 }: {
   principal: Principal;
   onExpired: () => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const [page, setPage] = useState<Page>({ view: 'dashboard' });
+  const [createBusy, setCreateBusy] = useState(false);
+  const busyChanged = useCallback(
+    (busy: boolean) => {
+      setCreateBusy(busy);
+      onBusyChange(busy);
+    },
+    [onBusyChange],
+  );
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   async function logout() {
@@ -43,7 +53,12 @@ export function TeacherWorkspace({
   if (!canTeach(principal))
     return <p role="alert">Teacher access is not available for this account.</p>;
   return (
-    <div className="tw-workspace">
+    <fieldset
+      className="tw-workspace"
+      disabled={createBusy}
+      aria-busy={createBusy}
+      style={{ minWidth: 0 }}
+    >
       <aside className="tw-sidebar">
         <div className="tw-brand">
           <span aria-hidden="true">学</span>
@@ -92,7 +107,11 @@ export function TeacherWorkspace({
           </nav>
         ) : null}
         {page.view === 'dashboard' ? (
-          <Dashboard onExpired={onExpired} onOpen={(klass) => setPage({ view: 'class', klass })} />
+          <Dashboard
+            onExpired={onExpired}
+            onBusyChange={busyChanged}
+            onOpen={(klass) => setPage({ view: 'class', klass })}
+          />
         ) : null}
         {page.view === 'class' ? (
           <ClassDetail
@@ -111,16 +130,18 @@ export function TeacherWorkspace({
           />
         ) : null}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
 function Dashboard({
   onExpired,
   onOpen,
+  onBusyChange,
 }: {
   onExpired: () => void;
   onOpen: (klass: TeacherClass) => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const resource = useResource(teacherApi.classes, onExpired);
   const [creating, setCreating] = useState(false);
@@ -144,6 +165,7 @@ function Dashboard({
       ) : null}
       {creating ? (
         <CreateClassForm
+          onBusyChange={onBusyChange}
           onExpired={onExpired}
           onCancel={() => {
             setCreating(false);

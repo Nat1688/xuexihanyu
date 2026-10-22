@@ -33,6 +33,16 @@ export function App() {
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [step, setStep] = useState<Step>({ view: 'boot' });
   const [nextBusy, setNextBusy] = useState(false);
+  const [teacherBusy, setTeacherBusy] = useState(false);
+  useEffect(() => {
+    if (!teacherBusy) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [teacherBusy]);
   const [nextError, setNextError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +78,7 @@ export function App() {
   const toLogin = useCallback(() => {
     forgetExercise(sessionStorage);
     setPrincipal(null);
+    setTeacherBusy(false);
     setNextError(null);
     setStep({ view: 'login' });
   }, []);
@@ -116,6 +127,7 @@ export function App() {
               <button
                 className="clp-button clp-button--secondary"
                 aria-pressed={step.view === 'teacher'}
+                disabled={teacherBusy}
                 onClick={() => setStep({ view: 'teacher' })}
               >
                 Teacher
@@ -123,6 +135,7 @@ export function App() {
               <button
                 className="clp-button clp-button--secondary"
                 aria-pressed={step.view !== 'teacher'}
+                disabled={teacherBusy}
                 onClick={() => {
                   const resumable = recalledExercise(sessionStorage);
                   setStep(
@@ -148,7 +161,12 @@ export function App() {
           ) : null}
 
           {step.view === 'teacher' && principal ? (
-            <TeacherWorkspace key={principal.publicId} principal={principal} onExpired={toLogin} />
+            <TeacherWorkspace
+              key={principal.publicId}
+              principal={principal}
+              onExpired={toLogin}
+              onBusyChange={setTeacherBusy}
+            />
           ) : null}
           {step.view === 'unauthorized' ? (
             <p role="alert">

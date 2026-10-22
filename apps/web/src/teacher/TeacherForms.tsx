@@ -6,7 +6,7 @@ import { ResourceView } from './TeacherViews';
 import { useResource } from './useResource';
 
 /** No automatic mutation retries: a network failure may happen after commit. */
-function useMutation(onExpired: () => void) {
+function useMutation(onExpired: () => void, onBusyChange?: (busy: boolean) => void) {
   const active = useRef(true);
   const lock = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -20,6 +20,7 @@ function useMutation(onExpired: () => void) {
   async function run(operation: () => Promise<unknown>, done: () => void) {
     if (lock.current) return;
     lock.current = true;
+    onBusyChange?.(true);
     setBusy(true);
     setError(null);
     try {
@@ -31,6 +32,7 @@ function useMutation(onExpired: () => void) {
       else setError(teacherError(failure));
     } finally {
       lock.current = false;
+      onBusyChange?.(false);
       if (active.current) setBusy(false);
     }
   }
@@ -41,14 +43,16 @@ export function CreateClassForm({
   onExpired,
   onSaved,
   onCancel,
+  onBusyChange,
 }: {
   onExpired: () => void;
   onSaved: () => void;
   onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const [title, setTitle] = useState('');
   const [term, setTerm] = useState('');
-  const mutation = useMutation(onExpired);
+  const mutation = useMutation(onExpired, onBusyChange);
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim()) return;

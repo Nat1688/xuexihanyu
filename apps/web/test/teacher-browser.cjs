@@ -195,7 +195,7 @@ async function main() {
           if (options.denied) return fail(options.denied);
           if (options.networkFailure) return route.abort();
           if (req.method() === 'POST') {
-            await pause(200);
+            await pause(options.createDelay || 200);
             const created = {
               ...klass,
               classId: id(20),
@@ -273,10 +273,27 @@ async function main() {
       await page.screenshot({ path: path.join(output, `${name}.png`), fullPage: true });
       await page.locator('#test-evidence-label').evaluate((element) => element.remove());
     }
+    await scenario(
+      'PR-01 pending class creation cannot be closed',
+      { createDelay: 1200 },
+      async (page, calls) => {
+        await page.getByRole('button', { name: '+ New class' }).click();
+        await page.getByLabel('Class name').fill('Pending class');
+        await page.getByRole('button', { name: 'Create class', exact: true }).click();
+        assert.ok(
+          await page.getByRole('button', { name: 'Close form', exact: true }).isDisabled(),
+          'P2-02 close must be disabled during POST',
+        );
+        assert.ok(await page.getByRole('button', { name: 'Sign out', exact: true }).isDisabled());
+        await visible(page.getByRole('button', { name: /Pending class/ }));
+        assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+      },
+    );
     await scenario('dashboard roster progress and responsive views', {}, async (page, calls) => {
       await visible(page.getByRole('heading', { name: 'Your teaching space' }));
       await screenshot(page, '01-dashboard-desktop');
       await openClass(page);
+      await visible(page.getByRole('button', { name: /View progress for Linh/ }));
       await screenshot(page, '02-class-roster');
       await page.getByRole('button', { name: /View progress for Linh/ }).click();
       await visible(page.getByText('75%', { exact: true }));
