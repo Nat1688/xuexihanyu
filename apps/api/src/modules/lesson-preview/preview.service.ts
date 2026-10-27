@@ -65,13 +65,20 @@ export class PreviewService {
     if (!catalog) failure(404);
     return catalog;
   }
+  availability(input: unknown = {}) {
+    if (!z.object({}).strict().safeParse(input).success) failure(400);
+    return {
+      available: previewEnabled(this.config) && this.targetVerified && this.catalogs.length > 0,
+    };
+  }
   read(input: unknown) {
     this.ensure();
     const parsed = querySchema.safeParse(input);
     if (!parsed.success) failure(400);
     const q = parsed.data;
     const catalog = this.ensure(q.revision);
-    const v = catalog.variants.find((x) => x.language === q.instructionLanguage)!;
+    const v = catalog.variants.find((x) => x.language === q.instructionLanguage);
+    if (!v) failure(404);
     return {
       packageId: catalog.packageId,
       variantId: v.variantId,
@@ -110,6 +117,7 @@ export class PreviewService {
     if (!parsed.success || Buffer.byteLength(JSON.stringify(input), 'utf8') > 8192) failure(400);
     const b = parsed.data;
     const catalog = this.ensure(b.revision);
+    if (!catalog.variants.some((x) => x.language === b.instructionLanguage)) failure(404);
     const task = catalog.tasks.find((x) => x.id === b.taskId);
     if (!task) failure(404);
     const received = normalizeForField(task.field, b.answer);

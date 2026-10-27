@@ -20,6 +20,7 @@ import { TodayScreen } from './screens/TodayScreen';
 import { TeacherWorkspace } from './teacher/TeacherWorkspace';
 import { canStudy, canTeach } from './teacher/model';
 import { LessonReader } from './lesson-preview/LessonReader';
+import { PreviewEntry } from './lesson-preview/PreviewEntry';
 
 type Step =
   | { view: 'boot' }
@@ -179,13 +180,7 @@ export function App() {
 
           {step.view === 'today' && principal ? (
             <>
-              <button
-                type="button"
-                className="clp-button"
-                onClick={() => setStep({ view: 'lesson-preview' })}
-              >
-                Lesson 01 · PREVIEW
-              </button>
+              <PreviewEntry onOpen={() => setStep({ view: 'lesson-preview' })} />
               <TodayScreen
                 principal={principal}
                 onContinue={() => void requestNext()}

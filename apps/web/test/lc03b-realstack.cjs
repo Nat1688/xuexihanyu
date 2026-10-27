@@ -1,4 +1,4 @@
-// LC-03B: real Nest + Prisma + React + Chromium. Requires approved fresh disposable target.
+// LC-03C: real Nest + Prisma + React + Chromium. Requires approved fresh disposable target.
 const { createRequire } = require('node:module');
 const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
@@ -127,6 +127,34 @@ async function main() {
     teacher = await login('TEACHER'),
     admin = await login('ADMIN');
   const route = '/student/learning-prototypes/lesson-01';
+  const { PreviewService } = require(path.join(src, 'modules/lesson-preview/preview.service'));
+  const service = app.get(PreviewService);
+  const originalConfig = service.config;
+  const originalCatalogs = service.catalogs;
+  service.config = { ...originalConfig, LC03B_PREVIEW_ENABLED: 'false' };
+  assert.equal((await call('GET', route + '/availability')).response.status, 401);
+  for (const actor of [teacher, admin])
+    assert.equal((await call('GET', route + '/availability', null, actor)).response.status, 403);
+  const off = await call('GET', route + '/availability', null, student);
+  assert.deepEqual(off.data, { available: false });
+  assert.equal(off.response.headers.get('cache-control'), 'no-store');
+  assert.equal(
+    (await call('GET', route + '?instructionLanguage=vi', null, student)).response.status,
+    404,
+  );
+  assert.equal((await call('POST', route + '/practice-check', {}, student)).response.status, 404);
+  service.config = originalConfig;
+  assert.deepEqual((await call('GET', route + '/availability', null, student)).data, {
+    available: true,
+  });
+  assert.equal(
+    (await call('GET', route + '/availability?secret=probe', null, student)).response.status,
+    400,
+  );
+  evidence.push({
+    scenario: 'Discovery OFF/ON, no-store, auth/RBAC, gate-OFF direct read/check',
+    status: 'PASS',
+  });
   assert.equal((await call('GET', route + '?instructionLanguage=vi')).response.status, 401);
   assert.equal((await call('POST', route + '/practice-check', {})).response.status, 401);
   for (const actor of [teacher, admin]) {
@@ -140,6 +168,51 @@ async function main() {
   assert.equal(read.response.status, 200);
   assert.equal(read.response.headers.get('cache-control'), 'no-store');
   const revision = read.data.revision;
+  // In-process test fixtures only: never catalog releases or persisted content.
+  const next = JSON.parse(JSON.stringify(originalCatalogs[0]));
+  next.revision = 'lc03c-fixture-next';
+  next.tasks.find((x) => x.id === 'P5').expected = 'fixture-only-answer';
+  const missing = JSON.parse(JSON.stringify(originalCatalogs[0]));
+  missing.revision = 'lc03c-fixture-missing';
+  missing.variants = missing.variants.filter((x) => x.language === 'vi');
+  service.catalogs = [originalCatalogs[0], missing, next];
+  assert.equal(
+    (await call('GET', route + '?instructionLanguage=en', null, student)).data.revision,
+    next.revision,
+  );
+  assert.equal(
+    (await call('GET', route + '?instructionLanguage=en&revision=' + revision, null, student)).data
+      .revision,
+    revision,
+  );
+  assert.equal(
+    (
+      await call(
+        'GET',
+        route + '?instructionLanguage=en&revision=' + missing.revision,
+        null,
+        student,
+      )
+    ).response.status,
+    404,
+  );
+  assert.equal(
+    (
+      await call(
+        'POST',
+        route + '/practice-check',
+        { instructionLanguage: 'en', revision: missing.revision, taskId: 'P1', answer: '你好' },
+        student,
+      )
+    ).response.status,
+    404,
+  );
+  service.catalogs = originalCatalogs;
+  evidence.push({
+    scenario:
+      'Explicit old/latest revision and unavailable variant without fallback (test-only registry)',
+    status: 'PASS',
+  });
   const b = { instructionLanguage: 'vi', revision, taskId: 'P1', answer: '你好' };
   for (const proof of [null, 'invalid'])
     assert.equal(
@@ -213,15 +286,18 @@ async function main() {
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const context = await browser.newContext({ viewport: { width: 1366, height: 1000 } });
   const page = await context.newPage();
-  const { PreviewService } = require(path.join(src, 'modules/lesson-preview/preview.service'));
-  const service = app.get(PreviewService);
   const originalRead = service.read.bind(service);
-  let releaseRead;
+  let releaseRead,
+    enteredRead = false;
+  // StrictMode can issue two reads. Release both through one barrier so the
+  // live effect cannot remain blocked while only an obsolete effect completes.
+  const readBarrier = new Promise((resolve) => {
+    releaseRead = resolve;
+  });
   service.read = async (input) => {
     const value = originalRead(input);
-    await new Promise((resolve) => {
-      releaseRead = resolve;
-    });
+    enteredRead = true;
+    await readBarrier;
     return value;
   };
   const pageErrors = [];
@@ -229,11 +305,23 @@ async function main() {
   await page.goto(ui);
   await page.getByLabel('Login', { exact: true }).fill(logins.STUDENT);
   await page.getByLabel('Password', { exact: true }).fill(password);
+  service.config = { ...originalConfig, LC03B_PREVIEW_ENABLED: 'false' };
+  const unavailableDiscovery = page.waitForResponse((r) => r.url().endsWith('/availability'));
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  assert.deepEqual(await (await unavailableDiscovery).json(), { available: false });
+  await page.getByText('Loading your plan…', { exact: true }).waitFor({ state: 'hidden' });
+  assert.equal(
+    await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).count(),
+    0,
+  );
+  fs.mkdirSync(root, { recursive: true });
+  await page.screenshot({ path: path.join(root, 'GATE-OFF.png'), fullPage: true });
+  service.config = originalConfig;
+  await page.reload();
   await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).click();
   await page.getByText('Đang tải bài…', { exact: true }).waitFor();
-  for (let i = 0; i < 100 && !releaseRead; i++) await page.waitForTimeout(10);
-  assert.ok(releaseRead);
+  for (let i = 0; i < 100 && !enteredRead; i++) await page.waitForTimeout(10);
+  assert.ok(enteredRead);
   service.read = originalRead;
   releaseRead();
   await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
@@ -249,7 +337,12 @@ async function main() {
   await page.getByText('Đúng về ký âm. Bài gõ không đánh giá phát âm.', { exact: true }).waitFor();
   fs.mkdirSync(root, { recursive: true });
   await page.screenshot({ path: path.join(root, 'VI-PREVIEW.png'), fullPage: true });
+  service.catalogs = [originalCatalogs[0], next];
+  const switchResponse = page.waitForResponse((r) =>
+    r.url().includes('instructionLanguage=en&revision='),
+  );
   await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  assert.equal((await (await switchResponse).json()).revision, revision);
   await page
     .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
     .waitFor();
@@ -259,8 +352,60 @@ async function main() {
   await page.getByRole('button', { name: 'Check P1', exact: true }).click();
   await page.getByText('Distinguish opening from goodbye; try 你好.', { exact: true }).waitFor();
   await page.screenshot({ path: path.join(root, 'EN-PREVIEW.png'), fullPage: true });
+  await page.getByLabel('Your answer', { exact: true }).nth(1).fill('nǐ hǎo');
+  const oldCheck = page.waitForResponse((r) => r.url().endsWith('/practice-check'));
+  await page.getByRole('button', { name: 'Check P5', exact: true }).click();
+  const oldFeedback = await (await oldCheck).json();
+  assert.equal(oldFeedback.revision, revision);
+  assert.equal(oldFeedback.correct, true); // latest fixture would reject this answer
+  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('vi');
+  await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
+  await page.getByText('Revision: ' + revision, { exact: true }).waitFor();
+  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  await page
+    .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
+    .waitFor();
+  await page.getByRole('radio', { name: '再见', exact: true }).check();
+  evidence.push({
+    scenario:
+      'Browser VI→EN→VI pinned old revision after latest changes; self-check uses old policy',
+    status: 'PASS',
+  });
+  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('vi');
+  await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
+  service.catalogs = [
+    {
+      ...originalCatalogs[0],
+      variants: originalCatalogs[0].variants.filter((x) => x.language === 'vi'),
+    },
+    next,
+  ];
+  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  await page
+    .getByText('Preview or revision unavailable. Reload the lesson or return to Today.', {
+      exact: true,
+    })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
+      .count(),
+    0,
+  );
+  service.catalogs = originalCatalogs;
+  await page.getByRole('button', { name: 'Reload lesson', exact: true }).click();
+  await page
+    .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
+    .waitFor();
+  evidence.push({
+    scenario:
+      'Browser missing pinned variant shows unavailable, not latest; explicit reload recovers',
+    status: 'PASS',
+  });
   // Delay the actual service result; no intercepted HTTP or fabricated answer.
   const originalCheck = service.check.bind(service);
+  // Explicit reload above correctly cleared selection; prepare a fresh attempt.
+  await page.getByRole('radio', { name: '再见', exact: true }).check();
   let releaseCheck, enteredCheck;
   const entered = new Promise((resolve) => {
     enteredCheck = resolve;
@@ -291,7 +436,6 @@ async function main() {
   );
   assert.equal(await page.locator('input:checked').count(), 0);
   // Existing server gate returns a real unavailable response, not a browser fixture.
-  const originalConfig = service.config;
   service.config = { ...originalConfig, LC03B_PREVIEW_ENABLED: 'false' };
   await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
   await page
@@ -304,9 +448,15 @@ async function main() {
   await page
     .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
     .waitFor();
+  service.catalogs = [originalCatalogs[0], next];
   await page.reload();
   await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).click();
   await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
+  await page.getByText('Revision: ' + next.revision, { exact: true }).waitFor();
+  evidence.push({
+    scenario: 'Browser reload deliberately loads current revision; unsaved answers cleared',
+    status: 'PASS',
+  });
   assert.equal(await page.locator('input:checked').count(), 0);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(
@@ -350,11 +500,11 @@ async function main() {
       2,
     ),
   );
-  console.log('LC03B real-stack PASS');
+  console.log('LC03C real-stack PASS');
 }
 main()
   .catch((e) => {
-    console.error(e.message);
+    console.error(e.stack);
     process.exitCode = 1;
   })
   .finally(async () => {

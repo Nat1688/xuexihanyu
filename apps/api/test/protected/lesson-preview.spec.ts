@@ -36,6 +36,24 @@ function status(operation: () => unknown, expected: number) {
   }
 }
 describe('LC-03B catalog and stateless contracts', () => {
+  it('LC03C discovery exposes only availability; errors and unverified targets fail closed', () => {
+    expect(new PreviewService(config, true).availability()).toEqual({ available: true });
+    expect(new PreviewService(config, false).availability()).toEqual({ available: false });
+    expect(new PreviewService(config, true, []).availability()).toEqual({ available: false });
+    status(() => new PreviewService(config, true).availability({ revision: 'private' }), 400);
+  });
+  it('LC03C missing language variant is unavailable for read and check, never latest fallback', () => {
+    const old = validateCatalog(rawCatalog, CONTENT_MANIFEST.sha256);
+    const missing = { ...old, variants: old.variants.filter((v) => v.language === 'vi') };
+    const latest = { ...old, revision: 'fixture-latest' };
+    const s = new PreviewService(config, true, [missing, latest]);
+    status(() => s.read({ instructionLanguage: 'en', revision: old.revision }), 404);
+    status(() => s.check({ ...body, instructionLanguage: 'en' }), 404);
+    expect(s.read({ instructionLanguage: 'vi', revision: old.revision }).revision).toBe(
+      old.revision,
+    );
+    expect(s.read({ instructionLanguage: 'en' }).revision).toBe(latest.revision);
+  });
   it('denies a config-only target without database identity verification', () => {
     status(() => new PreviewService(config, false).read({ instructionLanguage: 'vi' }), 404);
   });
@@ -87,6 +105,7 @@ describe('LC-03B catalog and stateless contracts', () => {
     const c = loadServerConfig({ ...env, ...overrides });
     expect(previewEnabled(c)).toBe(false);
     const service = new PreviewService(c, true);
+    expect(service.availability()).toEqual({ available: false });
     status(() => service.read({ instructionLanguage: 'vi' }), 404);
     status(() => service.check(body), 404);
   });

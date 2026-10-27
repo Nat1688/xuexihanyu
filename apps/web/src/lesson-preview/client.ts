@@ -38,8 +38,12 @@ export interface PracticeFeedback {
 }
 const path = '/student/learning-prototypes/lesson-01';
 export const previewApi = {
-  read: (language: InstructionLanguage) =>
-    request<LessonPreview>('GET', `${path}?instructionLanguage=${language}`),
+  availability: () => request<{ available: boolean }>('GET', `${path}/availability`),
+  read: (language: InstructionLanguage, revision?: string) =>
+    request<LessonPreview>(
+      'GET',
+      `${path}?instructionLanguage=${language}${revision === undefined ? '' : `&revision=${encodeURIComponent(revision)}`}`,
+    ),
   check: (body: {
     instructionLanguage: InstructionLanguage;
     revision: string;

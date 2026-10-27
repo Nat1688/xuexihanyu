@@ -3,8 +3,12 @@ jest.mock('../src/lesson-preview/LessonReader.css', () => ({}));
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LessonReader } from '../src/lesson-preview/LessonReader';
 import { previewApi } from '../src/lesson-preview/client';
+import { PreviewEntry } from '../src/lesson-preview/PreviewEntry';
 
 describe('LC-03B reader initial state and client contract', () => {
+  it('LC03C never advertises preview before server discovery', () => {
+    expect(renderToStaticMarkup(<PreviewEntry onOpen={() => undefined} />)).toBe('');
+  });
   it('shows preview, unsaved practice and separate instruction selector', () => {
     const html = renderToStaticMarkup(<LessonReader onBack={() => undefined} />);
     expect(html).toContain('PREVIEW_ONLY');
@@ -24,6 +28,8 @@ describe('LC-03B reader initial state and client contract', () => {
     });
     try {
       await previewApi.read('en');
+      await previewApi.read('vi', 'pinned revision');
+      await previewApi.availability();
       await previewApi.check({
         instructionLanguage: 'en',
         revision: 'rev-1',
@@ -31,14 +37,16 @@ describe('LC-03B reader initial state and client contract', () => {
         answer: 'nǐ hǎo',
       });
       expect(calls[0].url).toContain('instructionLanguage=en');
-      expect(JSON.parse(calls[1].options.body as string)).toEqual({
+      expect(calls[1].url).toContain('instructionLanguage=vi&revision=pinned%20revision');
+      expect(calls[2].url).toContain('/availability');
+      expect(JSON.parse(calls[3].options.body as string)).toEqual({
         instructionLanguage: 'en',
         revision: 'rev-1',
         taskId: 'P5',
         answer: 'nǐ hǎo',
       });
-      expect(calls[1].options.credentials).toBe('include');
-      expect(calls[1].options.cache).toBe('no-store');
+      expect(calls[3].options.credentials).toBe('include');
+      expect(calls[3].options.cache).toBe('no-store');
     } finally {
       global.fetch = previous;
       if (documentDescriptor) Object.defineProperty(globalThis, 'document', documentDescriptor);

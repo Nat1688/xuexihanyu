@@ -18,6 +18,7 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
   const [reload, setReload] = useState(0);
   const generation = useRef(0);
   const inFlight = useRef(false);
+  const pinned = useRef<{ packageId: string; revision: string } | null>(null);
   useEffect(() => {
     const id = ++generation.current;
     setLesson(null);
@@ -27,9 +28,18 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
     setBusy(false);
     inFlight.current = false;
     void previewApi
-      .read(language)
+      .read(language, pinned.current?.revision)
       .then((value) => {
-        if (generation.current === id) setLesson(value);
+        if (generation.current === id) {
+          if (
+            pinned.current &&
+            (pinned.current.packageId !== value.packageId ||
+              pinned.current.revision !== value.revision)
+          )
+            throw new ApiError(404, 'LESSON_PREVIEW_UNAVAILABLE', 'Lesson preview unavailable.');
+          pinned.current = { packageId: value.packageId, revision: value.revision };
+          setLesson(value);
+        }
       })
       .catch((err) => {
         if (generation.current === id) setError(message(err, language));
@@ -97,7 +107,14 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
       {error ? (
         <div role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => setReload((x) => x + 1)} disabled={busy}>
+          <button
+            type="button"
+            onClick={() => {
+              pinned.current = null;
+              setReload((x) => x + 1);
+            }}
+            disabled={busy}
+          >
             {vi ? 'Tải lại bài' : 'Reload lesson'}
           </button>
         </div>

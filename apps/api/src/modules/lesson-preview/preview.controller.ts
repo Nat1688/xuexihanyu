@@ -38,6 +38,11 @@ class PreviewHttpFilter implements ExceptionFilter {
 @UseFilters(PreviewHttpFilter)
 export class PreviewController {
   constructor(private readonly preview: PreviewService) {}
+  @Get('availability')
+  @Header('Cache-Control', 'no-store')
+  availability(@Query() query: unknown) {
+    return this.preview.availability(query);
+  }
   @Get()
   @Header('Cache-Control', 'no-store')
   read(@Query() query: unknown) {
