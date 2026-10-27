@@ -19,11 +19,13 @@ import { ResultScreen } from './screens/ResultScreen';
 import { TodayScreen } from './screens/TodayScreen';
 import { TeacherWorkspace } from './teacher/TeacherWorkspace';
 import { canStudy, canTeach } from './teacher/model';
+import { LessonReader } from './lesson-preview/LessonReader';
 
 type Step =
   | { view: 'boot' }
   | { view: 'login' }
   | { view: 'today' }
+  | { view: 'lesson-preview' }
   | { view: 'teacher' }
   | { view: 'unauthorized' }
   | { view: 'exercise'; sessionId: string }
@@ -176,11 +178,23 @@ export function App() {
           ) : null}
 
           {step.view === 'today' && principal ? (
-            <TodayScreen
-              principal={principal}
-              onContinue={() => void requestNext()}
-              onLoggedOut={toLogin}
-            />
+            <>
+              <button
+                type="button"
+                className="clp-button"
+                onClick={() => setStep({ view: 'lesson-preview' })}
+              >
+                Lesson 01 · PREVIEW
+              </button>
+              <TodayScreen
+                principal={principal}
+                onContinue={() => void requestNext()}
+                onLoggedOut={toLogin}
+              />
+            </>
+          ) : null}
+          {step.view === 'lesson-preview' && principal && canStudy(principal) ? (
+            <LessonReader onBack={() => setStep({ view: 'today' })} />
           ) : null}
 
           {step.view === 'exercise' ? (
