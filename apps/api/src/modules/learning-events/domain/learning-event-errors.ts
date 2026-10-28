@@ -21,6 +21,9 @@ export const LEARNING_EVENT_VALIDATION_CODE = 'LEARNING_EVENT_VALIDATION';
 /** Stable code for metadata that violates the allow-list or size limits. */
 export const LEARNING_EVENT_METADATA_CODE = 'LEARNING_EVENT_METADATA';
 
+/** Stable code for an idempotency-key collision with different evidence. */
+export const LEARNING_EVENT_CONFLICT_CODE = 'LEARNING_EVENT_CONFLICT';
+
 /**
  * Raised when an event type outside the closed {@link LearningEventType}
  * vocabulary is supplied. `value` is retained for server-side diagnostics but
@@ -71,5 +74,18 @@ export class LearningEventMetadataError extends Error {
   constructor(readonly reason: string) {
     super(`Invalid learning event metadata: ${reason}`);
     this.name = 'LearningEventMetadataError';
+  }
+}
+
+/**
+ * Raised when a caller-selected public id already identifies semantically
+ * different evidence. The message is deliberately fixed: neither the stored
+ * event nor the rejected payload is exposed.
+ */
+export class LearningEventConflictError extends Error {
+  readonly code = LEARNING_EVENT_CONFLICT_CODE;
+  constructor() {
+    super('Learning event idempotency conflict');
+    this.name = 'LearningEventConflictError';
   }
 }

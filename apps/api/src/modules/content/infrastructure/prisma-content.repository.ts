@@ -44,15 +44,43 @@ interface ItemRow {
   authorId: string;
 }
 
-const NODE_SELECT = {
+const NODE_FIELDS = {
   publicId: true,
   slug: true,
   title: true,
   description: true,
   visibility: true,
   position: true,
-  authorId: true,
 } as const;
+
+const NODE_SELECT = { ...NODE_FIELDS, authorId: true } as const;
+const UNIT_SELECT = { ...NODE_FIELDS, course: { select: { authorId: true } } } as const;
+const LESSON_SELECT = {
+  ...NODE_FIELDS,
+  unit: { select: { course: { select: { authorId: true } } } },
+} as const;
+
+function toUnit(row: Omit<NodeRow, 'authorId'> & { course: { authorId: string } }): StoredNode {
+  return toNode({ ...row, authorId: row.course.authorId });
+}
+
+function toLesson(
+  row: Omit<NodeRow, 'authorId'> & { unit: { course: { authorId: string } } },
+): StoredNode {
+  return toNode({ ...row, authorId: row.unit.course.authorId });
+}
+
+// Child ownership is inherited from Course, never persisted on Unit/Lesson.
+function childData(input: CreateNodeInput) {
+  return {
+    publicId: input.publicId,
+    slug: input.slug,
+    title: input.title,
+    description: input.description,
+    visibility: input.visibility,
+    position: input.position,
+  };
+}
 
 const ITEM_SELECT = {
   publicId: true,
@@ -121,8 +149,8 @@ export class PrismaContentRepository implements ContentRepository {
   }
   // --- units -------------------------------------------------------------
   async findUnitByPublicId(publicId: string): Promise<StoredNode | null> {
-    const row = await this.prisma.unit.findUnique({ where: { publicId }, select: NODE_SELECT });
-    return row ? toNode(row) : null;
+    const row = await this.prisma.unit.findUnique({ where: { publicId }, select: UNIT_SELECT });
+    return row ? toUnit(row) : null;
   }
 
   async findUnitByCourseAndSlug(coursePublicId: string, slug: string): Promise<StoredNode | null> {
@@ -133,9 +161,9 @@ export class PrismaContentRepository implements ContentRepository {
     if (!course) return null;
     const row = await this.prisma.unit.findUnique({
       where: { courseId_slug: { courseId: course.id, slug } },
-      select: NODE_SELECT,
+      select: UNIT_SELECT,
     });
-    return row ? toNode(row) : null;
+    return row ? toUnit(row) : null;
   }
 
   async listUnitsByCourse(coursePublicId: string): Promise<StoredNode[]> {
@@ -146,10 +174,10 @@ export class PrismaContentRepository implements ContentRepository {
     if (!course) return [];
     const rows = await this.prisma.unit.findMany({
       where: { courseId: course.id },
-      select: NODE_SELECT,
+      select: UNIT_SELECT,
       orderBy: [{ position: 'asc' }, { slug: 'asc' }],
     });
-    return rows.map(toNode);
+    return rows.map(toUnit);
   }
 
   async createUnit(coursePublicId: string, input: CreateNodeInput): Promise<StoredNode> {
@@ -159,16 +187,16 @@ export class PrismaContentRepository implements ContentRepository {
     });
     if (!course) throw new Error('course not found');
     const row = await this.prisma.unit.create({
-      data: { ...input, courseId: course.id },
-      select: NODE_SELECT,
+      data: { ...childData(input), courseId: course.id },
+      select: UNIT_SELECT,
     });
-    return toNode(row);
+    return toUnit(row);
   }
 
   // --- lessons -----------------------------------------------------------
   async findLessonByPublicId(publicId: string): Promise<StoredNode | null> {
-    const row = await this.prisma.lesson.findUnique({ where: { publicId }, select: NODE_SELECT });
-    return row ? toNode(row) : null;
+    const row = await this.prisma.lesson.findUnique({ where: { publicId }, select: LESSON_SELECT });
+    return row ? toLesson(row) : null;
   }
 
   async findLessonByUnitAndSlug(unitPublicId: string, slug: string): Promise<StoredNode | null> {
@@ -179,9 +207,9 @@ export class PrismaContentRepository implements ContentRepository {
     if (!unit) return null;
     const row = await this.prisma.lesson.findUnique({
       where: { unitId_slug: { unitId: unit.id, slug } },
-      select: NODE_SELECT,
+      select: LESSON_SELECT,
     });
-    return row ? toNode(row) : null;
+    return row ? toLesson(row) : null;
   }
 
   async listLessonsByUnit(unitPublicId: string): Promise<StoredNode[]> {
@@ -192,10 +220,10 @@ export class PrismaContentRepository implements ContentRepository {
     if (!unit) return [];
     const rows = await this.prisma.lesson.findMany({
       where: { unitId: unit.id },
-      select: NODE_SELECT,
+      select: LESSON_SELECT,
       orderBy: [{ position: 'asc' }, { slug: 'asc' }],
     });
-    return rows.map(toNode);
+    return rows.map(toLesson);
   }
 
   async createLesson(unitPublicId: string, input: CreateNodeInput): Promise<StoredNode> {
@@ -205,10 +233,10 @@ export class PrismaContentRepository implements ContentRepository {
     });
     if (!unit) throw new Error('unit not found');
     const row = await this.prisma.lesson.create({
-      data: { ...input, unitId: unit.id },
-      select: NODE_SELECT,
+      data: { ...childData(input), unitId: unit.id },
+      select: LESSON_SELECT,
     });
-    return toNode(row);
+    return toLesson(row);
   }
 
   // --- learning items ----------------------------------------------------

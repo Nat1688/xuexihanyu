@@ -15,6 +15,7 @@ import { MasteryModule } from './modules/mastery/mastery.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { StudentModule } from './modules/student/student.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
+import { PreviewModule } from './modules/lesson-preview/preview.module';
 
 /**
  * Root application module.
@@ -46,6 +47,7 @@ import { TeacherModule } from './modules/teacher/teacher.module';
     MasteryModule,
     StudentModule,
     TeacherModule,
+    PreviewModule,
     ReportingModule,
     AiModule,
   ],

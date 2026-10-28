@@ -106,6 +106,7 @@ export const serverConfigSchema = z
       .int('SESSION_TTL_MINUTES must be an integer')
       .positive('SESSION_TTL_MINUTES must be > 0'),
     CSRF_SECRET: requiredNonEmpty('CSRF_SECRET'),
+    LC03B_PREVIEW_ENABLED: z.enum(['true', 'false']).optional(),
   })
   .strict();
 

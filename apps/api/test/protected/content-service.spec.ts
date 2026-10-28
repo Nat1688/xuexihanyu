@@ -177,6 +177,47 @@ describe('ContentService — hierarchy authoring + authorization', () => {
     );
   });
 
+  it('all creates ignore spoofed server fields and parent relationships', async () => {
+    const spoof = {
+      authorId: 'attacker',
+      publicId: 'forged-id',
+      id: 'internal-id',
+      courseId: 'foreign-course',
+      unitId: 'foreign-unit',
+      parentPublicId: 'foreign-parent',
+      course: { connect: { id: 'foreign-course' } },
+      unit: { connect: { id: 'foreign-unit' } },
+    };
+    const draft = { ...courseDraft(), ...spoof, description: 'Allowed description', position: 3 };
+    const course = await service.createCourse(TEACHER, draft);
+    const unit = await service.createUnit(ADMIN, course.publicId, draft);
+    const lesson = await service.createLesson(ADMIN, unit.publicId, draft);
+    const item = await service.createItem(TEACHER, {
+      ...spoof,
+      kind: 'CHARACTER',
+      simplified: '一',
+      pinyin: 'yī',
+      meaning: 'one',
+    });
+    for (const node of [course, unit, lesson, item]) {
+      expect(node.authorId).toBe(TEACHER.userId);
+      expect(node.publicId).toMatch(/^gen-/);
+      expect(node).not.toHaveProperty('id');
+      expect(node).not.toHaveProperty('courseId');
+    }
+    expect(repo.nodes.find((n) => n.publicId === unit.publicId)?.parentPublicId).toBe(
+      course.publicId,
+    );
+    expect(repo.nodes.find((n) => n.publicId === lesson.publicId)?.parentPublicId).toBe(
+      unit.publicId,
+    );
+    for (const node of [course, unit, lesson]) {
+      expect(node.title).toBe('Greetings');
+      expect(node.description).toBe('Allowed description');
+      expect(node.position).toBe(3);
+    }
+  });
+
   it('rejects a duplicate course slug (conflict)', async () => {
     await service.createCourse(TEACHER, courseDraft());
     await expect(service.createCourse(TEACHER, courseDraft())).rejects.toBeInstanceOf(
@@ -203,6 +244,36 @@ describe('ContentService — hierarchy authoring + authorization', () => {
     expect(lesson.publicId).toBeDefined();
     expect(await repo.listLessonsByUnit(unit.publicId)).toHaveLength(1);
   });
+
+  it.each(['createUnit', 'createLesson'] as const)(
+    '%s rejects foreign ownership before repository write and preserves owner/admin access',
+    async (method) => {
+      const course = await service.createCourse(TEACHER, courseDraft());
+      const parent =
+        method === 'createUnit'
+          ? course
+          : await service.createUnit(TEACHER, course.publicId, { slug: 'parent', title: 'Parent' });
+      const write = jest.spyOn(repo, method);
+      await expect(
+        service[method](OTHER_TEACHER, parent.publicId, courseDraft()),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(write).not.toHaveBeenCalled();
+      await expect(
+        service[method](TEACHER, 'missing-parent', courseDraft()),
+      ).rejects.toBeInstanceOf(ContentNotFoundError);
+      expect(write).not.toHaveBeenCalled();
+      const owned = await service[method](TEACHER, parent.publicId, courseDraft());
+      expect(owned.authorId).toBe(TEACHER.userId);
+      const adminCreated = await service[method](
+        ADMIN,
+        parent.publicId,
+        courseDraft({ slug: 'admin-child' }),
+      );
+      expect(adminCreated.authorId).toBe(TEACHER.userId);
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(adminCreated.visibility).toBe('DRAFT');
+    },
+  );
 
   it('rejects a duplicate unit slug within the SAME course', async () => {
     const course = await service.createCourse(TEACHER, courseDraft());

@@ -12,6 +12,7 @@
  *   GET  /student/exercises/:sessionId       EXERCISE (no answer key)
  *   POST /student/exercises/:sessionId/answers  RESULT (submit, idempotent)
  *   GET  /student/exercises/:sessionId/result   RESULT (stable re-read)
+ *   POST /student/exercises/:sessionId/result/recover  explicit recovery
  *
  * Mutating POSTs additionally verify the session's CSRF double-submit proof
  * (same contract as `POST /auth/logout`), because `AuthGuard` does not.
@@ -22,6 +23,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   Param,
   Post,
@@ -108,6 +110,7 @@ function projectResult(view: ResultView): Record<string, unknown> {
     expected: view.expected,
     received: view.received,
     submittedAt: view.submittedAt.toISOString(),
+    integrityStatus: view.integrityStatus,
     next: view.next,
   };
 }
@@ -128,6 +131,7 @@ export class StudentController {
   // --- TODAY -------------------------------------------------------------
 
   @Get('today')
+  @Header('Cache-Control', 'no-store')
   async today(
     @Req() req: AuthenticatedRequest,
     @Query('goal') goal?: string,
@@ -140,6 +144,7 @@ export class StudentController {
 
   @Post('exercises/next')
   @HttpCode(201)
+  @Header('Cache-Control', 'no-store')
   async next(
     @Req() req: AuthenticatedRequest,
     @Query('goal') goal?: string,
@@ -152,6 +157,7 @@ export class StudentController {
   // --- EXERCISE ----------------------------------------------------------
 
   @Get('exercises/:sessionId')
+  @Header('Cache-Control', 'no-store')
   async exercise(
     @Req() req: AuthenticatedRequest,
     @Param('sessionId') sessionId: string,
@@ -164,6 +170,7 @@ export class StudentController {
 
   @Post('exercises/:sessionId/answers')
   @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
   async answer(
     @Req() req: AuthenticatedRequest,
     @Param('sessionId') sessionId: string,
@@ -182,11 +189,24 @@ export class StudentController {
   }
 
   @Get('exercises/:sessionId/result')
+  @Header('Cache-Control', 'no-store')
   async result(
     @Req() req: AuthenticatedRequest,
     @Param('sessionId') sessionId: string,
   ): Promise<Record<string, unknown>> {
     const view = await this.student.getResult(actorOf(req), sessionId, new Date());
+    return projectResult(view);
+  }
+
+  @Post('exercises/:sessionId/result/recover')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async recoverResult(
+    @Req() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
+    const view = await this.student.recoverResult(actorOf(req), sessionId, new Date());
     return projectResult(view);
   }
 }

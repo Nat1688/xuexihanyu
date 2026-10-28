@@ -34,6 +34,7 @@ import {
   type ExerciseSourceItem,
   type GenerateRequest,
 } from './exercise-ports';
+import { orderMcqOptions } from '../domain/option-ordering';
 
 /** Dependencies for the exercise service. */
 export interface ExerciseServiceDeps {
@@ -116,7 +117,14 @@ export class ExerciseService {
           count: distractorsPer,
           seed: request.seed,
         });
-        options = [answer, ...distractors];
+        options = orderMcqOptions([answer, ...distractors], {
+          answerField,
+          answer,
+          lessonPublicId: request.lessonPublicId,
+          learningItemPublicId: item.learningItemPublicId,
+          mode,
+          seed: request.seed,
+        });
       }
 
       instances.push(

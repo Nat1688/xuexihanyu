@@ -3,8 +3,9 @@
  *
  * A {@link NewLearningEvent} is the VALIDATED, normalized form of an event
  * append request — everything the repository needs, with every field checked
- * and safe. Building one is pure: no I/O, no clock, no id generation (the
- * caller supplies the id and the receipt timestamp).
+ * and safe. Building one is pure: no I/O, no clock, and no id generation. A
+ * caller may supply a public id as an idempotency key; otherwise persistence
+ * assigns it. Persistence always assigns the receipt timestamp.
  *
  * A {@link StoredLearningEvent} is what the repository hands back: the same
  * evidence plus the server-assigned public id and receipt time.
@@ -35,6 +36,8 @@ export interface LearningEventRefs {
 
 /** A validated, normalized event ready to append. */
 export interface NewLearningEvent {
+  /** Optional caller-selected idempotency key. Omit for ordinary appends. */
+  readonly publicId?: string;
   readonly type: LearningEventType;
   readonly schemaVersion: number;
   /** The acting user's public id (server-derived; never a client claim). */
@@ -58,6 +61,7 @@ export interface StoredLearningEvent {
 
 /** Raw append request (untrusted; validated by {@link makeLearningEvent}). */
 export interface AppendLearningEventInput {
+  publicId?: unknown;
   type: unknown;
   actorPublicId: unknown;
   occurredAt: unknown;
@@ -72,6 +76,16 @@ export interface AppendLearningEventInput {
 
 /** Maximum length of the opaque exercise reference (aligned with the column). */
 export const EXERCISE_REF_MAX_LENGTH = 200;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateOptionalEventPublicId(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
+    throw new LearningEventValidationError('publicId', 'must be a UUID when provided');
+  }
+  return value;
+}
 
 function validateOptionalPublicId(field: string, value: unknown): string | null {
   if (value === undefined || value === null) return null;
@@ -104,6 +118,7 @@ function validateExerciseRef(value: unknown): string | null {
  * typed, safe error on any contract violation.
  */
 export function makeLearningEvent(input: AppendLearningEventInput): NewLearningEvent {
+  const publicId = validateOptionalEventPublicId(input.publicId);
   const type = validateEventType(input.type);
 
   const schemaVersion =
@@ -130,6 +145,7 @@ export function makeLearningEvent(input: AppendLearningEventInput): NewLearningE
   });
 
   return Object.freeze({
+    ...(publicId ? { publicId } : {}),
     type,
     schemaVersion,
     actorPublicId: input.actorPublicId,

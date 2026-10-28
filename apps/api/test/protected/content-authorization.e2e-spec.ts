@@ -197,6 +197,14 @@ function parseSetCookies(headers: Record<string, unknown>): Record<string, strin
   return out;
 }
 
+function sessionCookies(headers: Record<string, unknown>): string {
+  const cookies = parseSetCookies(headers);
+  return `clp_session=${cookies.clp_session}; clp_csrf=${cookies.clp_csrf}`;
+}
+function csrfOf(cookie: string): string {
+  return decodeURIComponent(cookie.split('clp_csrf=')[1] ?? '');
+}
+
 describe('content HTTP authorization (isolated slice, no DB)', () => {
   let ctx: TestAppContext;
   const cookie: Record<string, string> = {};
@@ -209,7 +217,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
         .send({ login: seed.login, password: PASSWORD })
         .expect(200);
       const cookies = parseSetCookies(res.headers as Record<string, unknown>);
-      cookie[label] = `clp_session=${cookies['clp_session']}`;
+      cookie[label] = `clp_session=${cookies['clp_session']}; clp_csrf=${cookies['clp_csrf']}`;
     }
   });
 
@@ -218,6 +226,43 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
   });
 
   const courseBody = { slug: 'greetings', title: 'Greetings' };
+
+  it.each([
+    '/content/courses',
+    '/content/courses/parent/units',
+    '/content/units/parent/lessons',
+    '/content/items',
+    '/content/lessons/parent/items',
+  ])(
+    '%s rejects missing, mismatched and other-session CSRF before service writes',
+    async (route) => {
+      const service = ctx.app.get(ContentService);
+      const writes = [
+        'createCourse',
+        'createUnit',
+        'createLesson',
+        'createItem',
+        'attachItemToLesson',
+      ] as const;
+      const spies = writes.map((method) => jest.spyOn(service, method));
+      try {
+        for (const proof of [undefined, 'invalid-proof', csrfOf(cookie.admin)]) {
+          const request = ctx.http.post(route).set('Cookie', cookie.teacher);
+          if (proof) request.set('X-CSRF-Token', proof);
+          const response = await request.send(courseBody);
+          expect(response.status).toBe(403);
+          expect(response.body.error.code).toBe('AUTH_CSRF_INVALID');
+        }
+        for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+      } finally {
+        for (const spy of spies) spy.mockRestore();
+      }
+    },
+  );
+
+  it('GET content requires no CSRF proof', async () => {
+    await ctx.http.get('/content/courses').set('Cookie', cookie.teacher.split(';')[0]).expect(200);
+  });
 
   describe('POST /content/courses (author a course)', () => {
     it('anonymous → 401 AUTH_REQUIRED', async () => {
@@ -230,6 +275,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
       const res = await ctx.http
         .post('/content/courses')
         .set('Cookie', cookie.student)
+        .set('X-CSRF-Token', csrfOf(cookie.student))
         .send(courseBody);
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('AUTH_FORBIDDEN');
@@ -239,6 +285,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
       const res = await ctx.http
         .post('/content/courses')
         .set('Cookie', cookie.teacher)
+        .set('X-CSRF-Token', csrfOf(cookie.teacher))
         .send(courseBody);
       expect(res.status).toBe(201);
       expect(res.body.publicId).toBeDefined();
@@ -250,6 +297,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
       const res = await ctx.http
         .post('/content/courses')
         .set('Cookie', cookie.admin)
+        .set('X-CSRF-Token', csrfOf(cookie.admin))
         .send({ slug: 'admin-course', title: 'Admin Course' });
       expect(res.status).toBe(201);
     });
@@ -260,6 +308,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
       const res = await ctx.http
         .post('/content/items')
         .set('Cookie', cookie.teacher)
+        .set('X-CSRF-Token', csrfOf(cookie.teacher))
         .send({ kind: 'VOCABULARY', simplified: '你好', meaning: 'hello' }); // missing pinyin
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('CONTENT_VALIDATION_FAILED');
@@ -271,6 +320,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
       const res = await ctx.http
         .post('/content/items')
         .set('Cookie', cookie.student)
+        .set('X-CSRF-Token', csrfOf(cookie.student))
         .send({ kind: 'VOCABULARY', simplified: '你好', pinyin: 'nǐ hǎo', meaning: 'hello' });
       expect(res.status).toBe(403);
     });
@@ -285,36 +335,40 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
           .post('/auth/login')
           .send({ login: SEEDS.teacher.login, password: PASSWORD })
           .expect(200);
-        const ownerCookie = `clp_session=${parseSetCookies(owner.headers as Record<string, unknown>)['clp_session']}`;
+        const ownerCookie = sessionCookies(owner.headers as Record<string, unknown>);
         const other = await local.http
           .post('/auth/login')
           .send({ login: SEEDS.otherTeacher.login, password: PASSWORD })
           .expect(200);
-        const otherCookie = `clp_session=${parseSetCookies(other.headers as Record<string, unknown>)['clp_session']}`;
+        const otherCookie = sessionCookies(other.headers as Record<string, unknown>);
         const admin = await local.http
           .post('/auth/login')
           .send({ login: SEEDS.admin.login, password: PASSWORD })
           .expect(200);
-        const adminCookie = `clp_session=${parseSetCookies(admin.headers as Record<string, unknown>)['clp_session']}`;
+        const adminCookie = sessionCookies(admin.headers as Record<string, unknown>);
 
         const course = await local.http
           .post('/content/courses')
           .set('Cookie', ownerCookie)
+          .set('X-CSRF-Token', csrfOf(ownerCookie))
           .send({ slug: 'c1', title: 'C1' })
           .expect(201);
         const unit = await local.http
           .post(`/content/courses/${course.body.publicId}/units`)
           .set('Cookie', ownerCookie)
+          .set('X-CSRF-Token', csrfOf(ownerCookie))
           .send({ slug: 'u1', title: 'U1' })
           .expect(201);
         const lesson = await local.http
           .post(`/content/units/${unit.body.publicId}/lessons`)
           .set('Cookie', ownerCookie)
+          .set('X-CSRF-Token', csrfOf(ownerCookie))
           .send({ slug: 'l1', title: 'L1' })
           .expect(201);
         const item = await local.http
           .post('/content/items')
           .set('Cookie', ownerCookie)
+          .set('X-CSRF-Token', csrfOf(ownerCookie))
           .send({ kind: 'CHARACTER', simplified: '一', pinyin: 'yī', meaning: 'one' })
           .expect(201);
 
@@ -322,6 +376,7 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
           local.http
             .post(`/content/lessons/${lesson.body.publicId}/items`)
             .set('Cookie', c)
+            .set('X-CSRF-Token', csrfOf(c))
             .send({ learningItemPublicId: item.body.publicId, position: 0 });
 
         expect((await attach(otherCookie)).status).toBe(403);
@@ -331,11 +386,13 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
         const second = await local.http
           .post('/content/items')
           .set('Cookie', ownerCookie)
+          .set('X-CSRF-Token', csrfOf(ownerCookie))
           .send({ kind: 'CHARACTER', simplified: '二', pinyin: 'èr', meaning: 'two' })
           .expect(201);
         const adminRes = await local.http
           .post(`/content/lessons/${lesson.body.publicId}/items`)
           .set('Cookie', adminCookie)
+          .set('X-CSRF-Token', csrfOf(adminCookie))
           .send({ learningItemPublicId: second.body.publicId, position: 1 });
         expect(adminRes.status).toBe(204);
       } finally {
@@ -353,24 +410,31 @@ describe('content HTTP authorization (isolated slice, no DB)', () => {
           .post('/auth/login')
           .send({ login: SEEDS.teacher.login, password: PASSWORD })
           .expect(200);
-        const teacherCookie = `clp_session=${parseSetCookies(teacher.headers as Record<string, unknown>)['clp_session']}`;
+        const teacherCookie = sessionCookies(teacher.headers as Record<string, unknown>);
         const student = await local.http
           .post('/auth/login')
           .send({ login: SEEDS.student.login, password: PASSWORD })
           .expect(200);
-        const studentCookie = `clp_session=${parseSetCookies(student.headers as Record<string, unknown>)['clp_session']}`;
+        const studentCookie = sessionCookies(student.headers as Record<string, unknown>);
 
         await local.http
           .post('/content/courses')
           .set('Cookie', teacherCookie)
+          .set('X-CSRF-Token', csrfOf(teacherCookie))
           .send({ slug: 'draft-only', title: 'Draft' })
           .expect(201);
 
-        const asTeacher = await local.http.get('/content/courses').set('Cookie', teacherCookie);
+        const asTeacher = await local.http
+          .get('/content/courses')
+          .set('Cookie', teacherCookie)
+          .set('X-CSRF-Token', csrfOf(teacherCookie));
         expect(asTeacher.status).toBe(200);
         expect(asTeacher.body.map((c: { slug: string }) => c.slug)).toContain('draft-only');
 
-        const asStudent = await local.http.get('/content/courses').set('Cookie', studentCookie);
+        const asStudent = await local.http
+          .get('/content/courses')
+          .set('Cookie', studentCookie)
+          .set('X-CSRF-Token', csrfOf(studentCookie));
         expect(asStudent.status).toBe(200);
         expect(asStudent.body.map((c: { slug: string }) => c.slug)).not.toContain('draft-only');
       } finally {

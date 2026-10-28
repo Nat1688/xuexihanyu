@@ -37,7 +37,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AuthGuard } from '../../identity/http/auth.guard';
+import { AuthGuard, readCookie } from '../../identity/http/auth.guard';
+import { CsrfInvalidError } from '../../identity/application/auth-errors';
+import { CSRF_COOKIE_NAME } from '../../identity/application/cookie-policy';
+import { CSRF_HEADER, verifyCsrfProof } from '../../identity/domain/csrf';
 import { type AuthenticatedRequest } from '../../identity/http/authenticated-request';
 import { RequireRoles } from '../../identity/http/require-roles';
 import { RoleGuard } from '../../identity/http/role.guard';
@@ -49,6 +52,20 @@ import { ContentExceptionFilter } from './content-exception.filter';
 function actorOf(req: AuthenticatedRequest): ContentActor {
   const principal = req.auth!.principal;
   return { userId: principal.userId, roles: principal.roles };
+}
+
+function assertCsrf(req: AuthenticatedRequest): void {
+  const auth = req.auth;
+  if (!auth) throw new CsrfInvalidError();
+  const headerToken = req.headers[CSRF_HEADER];
+  if (
+    !verifyCsrfProof({
+      cookieToken: readCookie(req.headers.cookie, CSRF_COOKIE_NAME),
+      headerToken: Array.isArray(headerToken) ? headerToken[0] : headerToken,
+      sessionHash: auth.csrfHash,
+    })
+  )
+    throw new CsrfInvalidError();
 }
 
 @Controller('content')
@@ -66,6 +83,7 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Body() body: NodeDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const node = await this.content.createCourse(actorOf(req), body);
     return projectNode(node);
   }
@@ -86,6 +104,7 @@ export class ContentController {
     @Param('coursePublicId') coursePublicId: string,
     @Body() body: NodeDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const node = await this.content.createUnit(actorOf(req), coursePublicId, body);
     return projectNode(node);
   }
@@ -109,6 +128,7 @@ export class ContentController {
     @Param('unitPublicId') unitPublicId: string,
     @Body() body: NodeDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const node = await this.content.createLesson(actorOf(req), unitPublicId, body);
     return projectNode(node);
   }
@@ -131,6 +151,7 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Body() body: ItemDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const item = await this.content.createItem(actorOf(req), body);
     return projectItem(item);
   }
@@ -153,6 +174,7 @@ export class ContentController {
     @Param('lessonPublicId') lessonPublicId: string,
     @Body() body: { learningItemPublicId: string; position?: unknown },
   ): Promise<void> {
+    assertCsrf(req);
     await this.content.attachItemToLesson(
       actorOf(req),
       lessonPublicId,

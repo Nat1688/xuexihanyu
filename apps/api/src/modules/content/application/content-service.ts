@@ -78,9 +78,9 @@ export class ContentService {
   async createCourse(actor: ContentActor, draft: NodeDraft): Promise<HierarchyNode> {
     assertCanCreateContent(actor);
     const node = makeHierarchyNode({
+      ...draft,
       publicId: this.deps.newPublicId(),
       authorId: actor.userId,
-      ...draft,
     });
     const existing = await this.deps.repository.findCourseBySlug(node.slug);
     if (existing) {
@@ -100,11 +100,12 @@ export class ContentService {
     assertCanCreateContent(actor);
     const course = await this.deps.repository.findCourseByPublicId(coursePublicId);
     if (!course) throw new ContentNotFoundError('course');
+    assertCanMutateContent(actor, course.authorId);
 
     const node = makeHierarchyNode({
-      publicId: this.deps.newPublicId(),
-      authorId: actor.userId,
       ...draft,
+      publicId: this.deps.newPublicId(),
+      authorId: course.authorId,
     });
     const existing = await this.deps.repository.findUnitByCourseAndSlug(coursePublicId, node.slug);
     if (existing) {
@@ -126,11 +127,12 @@ export class ContentService {
     assertCanCreateContent(actor);
     const unit = await this.deps.repository.findUnitByPublicId(unitPublicId);
     if (!unit) throw new ContentNotFoundError('unit');
+    assertCanMutateContent(actor, unit.authorId);
 
     const node = makeHierarchyNode({
-      publicId: this.deps.newPublicId(),
-      authorId: actor.userId,
       ...draft,
+      publicId: this.deps.newPublicId(),
+      authorId: unit.authorId,
     });
     const existing = await this.deps.repository.findLessonByUnitAndSlug(unitPublicId, node.slug);
     if (existing) {
@@ -147,9 +149,9 @@ export class ContentService {
   async createItem(actor: ContentActor, draft: ItemDraft): Promise<LearningItem> {
     assertCanCreateContent(actor);
     const item = makeLearningItem({
+      ...draft,
       publicId: this.deps.newPublicId(),
       authorId: actor.userId,
-      ...draft,
     });
     return toItem(await this.deps.repository.createItem(toItemCreateInput(item)));
   }

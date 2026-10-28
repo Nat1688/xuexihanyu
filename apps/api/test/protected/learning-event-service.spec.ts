@@ -67,6 +67,25 @@ describe('LearningEventService.record (CP-03)', () => {
     expect(stored.refs.lessonPublicId).toBe('l-1');
   });
 
+  it('accepts a caller-supplied UUID as an idempotency key', async () => {
+    const { service, repository } = makeService();
+    const publicId = '3bbcee75-6b9e-5ca7-a551-35223b16a999';
+    const input = {
+      publicId,
+      type: 'ANSWER_SUBMITTED',
+      actorPublicId: ACTOR,
+      occurredAt: new Date('2026-10-16T10:00:00.000Z'),
+      exerciseRef: 'session-1',
+      metadata: { outcome: 'correct' },
+    } as const;
+
+    const first = await service.record(input);
+    const retry = await service.record(input);
+    expect(first.publicId).toBe(publicId);
+    expect(retry).toEqual(first);
+    expect(repository.snapshot()).toHaveLength(1);
+  });
+
   it('rejects a malformed event BEFORE the repository is touched', async () => {
     const { service, repository } = makeService();
     await expect(
@@ -81,6 +100,14 @@ describe('LearningEventService.record (CP-03)', () => {
         type: 'LESSON_STARTED',
         actorPublicId: ACTOR,
         occurredAt: 'not-a-date',
+      }),
+    ).rejects.toBeInstanceOf(LearningEventValidationError);
+    await expect(
+      service.record({
+        publicId: 'not-a-uuid',
+        type: 'LESSON_STARTED',
+        actorPublicId: ACTOR,
+        occurredAt: new Date('2026-10-16T10:00:00.000Z'),
       }),
     ).rejects.toBeInstanceOf(LearningEventValidationError);
     expect(repository.appendCount).toBe(0);

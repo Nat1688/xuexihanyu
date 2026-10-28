@@ -46,6 +46,7 @@ import { AuthGuard } from '../../src/modules/identity/http/auth.guard';
 import { RoleGuard } from '../../src/modules/identity/http/role.guard';
 import { parsePublicUserId, type PublicUserId, type Role } from '../../src/modules/identity/domain';
 import { type LearningEventService } from '../../src/modules/learning-events/application/learning-event-service';
+import { LearningEventConflictError } from '../../src/modules/learning-events/domain';
 import { type MasteryService } from '../../src/modules/mastery/application/mastery-service';
 import { type MasteryState } from '../../src/modules/mastery/domain';
 import { StudentService } from '../../src/modules/student/application/student-service';
@@ -260,9 +261,8 @@ class FakeSessionStore implements AnswerSessionRepository {
 
   async linkEvent(id: string, token: string, eventPublicId: string): Promise<void> {
     const row = this.submissions.get(id);
-    if (row && row.submissionToken === token) {
-      this.submissions.set(id, { ...row, learningEventPublicId: eventPublicId });
-    }
+    if (!row || row.submissionToken !== token) throw new Error('submission not found');
+    this.submissions.set(id, { ...row, learningEventPublicId: eventPublicId });
   }
 }
 
@@ -278,6 +278,7 @@ interface Slice {
   progress: FakeProgress;
   store: FakeSessionStore;
   events: { record: jest.Mock };
+  mastery: { deriveForActor: jest.Mock };
 }
 
 /** Build the isolated student slice. `seed` decides what is "published". */
@@ -310,12 +311,10 @@ function buildSlice(seed: 'published' | 'empty'): Slice {
   exerciseContent.addLesson('l1', ['i1', 'i2']);
   exerciseContent.addLesson('l2', ['i3']);
 
-  let eventCount = 0;
   const events = {
-    record: jest.fn(async () => {
-      eventCount += 1;
-      return { publicId: `e${eventCount}` };
-    }),
+    record: jest.fn(async (input: { publicId?: unknown }) => ({
+      publicId: String(input.publicId),
+    })),
   };
 
   const mastery = {
@@ -369,6 +368,7 @@ function buildSlice(seed: 'published' | 'empty'): Slice {
     progress,
     store,
     events,
+    mastery,
   };
 }
 
@@ -431,6 +431,7 @@ describe('student HTTP loop (isolated slice, no DB)', () => {
       const res = await ctx.http.get('/student/today').set('Cookie', cookie.student);
       expect(res.status).toBe(200);
       expect(res.body.empty).toBe(false);
+      expect(res.headers['cache-control']).toBe('no-store');
       expect(res.body.entries.map((e: { lessonId: string }) => e.lessonId)).toEqual([
         'l1',
         'l1',
@@ -460,6 +461,7 @@ describe('student HTTP loop (isolated slice, no DB)', () => {
       expect(typeof res.body.sessionId).toBe('string');
       expect(res.body.prompt).toBe('m-i1');
       expect(res.body.alreadyAnswered).toBe(false);
+      expect(res.headers['cache-control']).toBe('no-store');
       const raw = JSON.stringify(res.body);
       expect(raw).not.toMatch(/answerKey|answer:/);
       expect(res.body.actorPublicId).toBeUndefined();
@@ -516,14 +518,56 @@ describe('student HTTP loop (isolated slice, no DB)', () => {
       expect(res.body.correct).toBe(true);
       expect(res.body.expected).toBe('i1');
       expect(res.body.received).toBe('i1');
+      expect(res.body.integrityStatus).toBe('COMPLETE');
+      expect(res.headers['cache-control']).toBe('no-store');
       expect(slice.events.record).toHaveBeenCalledTimes(1);
     });
 
+    it('recovery requires CSRF, is owner-scoped and remains idempotent', async () => {
+      await ctx.http
+        .post(`/student/exercises/${sessionId}/result/recover`)
+        .set('Cookie', cookie.student)
+        .send()
+        .expect(403);
+
+      const other = await ctx.http
+        .post(`/student/exercises/${sessionId}/result/recover`)
+        .set('Cookie', cookie.other)
+        .set('X-CSRF-Token', csrf.other)
+        .send();
+      expect(other.status).toBe(404);
+
+      const before = slice.events.record.mock.calls.length;
+      const [left, right] = await Promise.all([
+        ctx.http
+          .post(`/student/exercises/${sessionId}/result/recover`)
+          .set('Cookie', cookie.student)
+          .set('X-CSRF-Token', csrf.student)
+          .send(),
+        ctx.http
+          .post(`/student/exercises/${sessionId}/result/recover`)
+          .set('Cookie', cookie.student)
+          .set('X-CSRF-Token', csrf.student)
+          .send(),
+      ]);
+      expect(left.status).toBe(200);
+      expect(right.status).toBe(200);
+      expect(left.headers['cache-control']).toBe('no-store');
+      expect(right.body).toEqual(left.body);
+      expect(slice.events.record).toHaveBeenCalledTimes(before);
+    });
+
     it('replaying the SAME token returns the identical result and appends NO evidence', async () => {
+      const eventCallsBeforeGet = slice.events.record.mock.calls.length;
+      const masteryCallsBeforeGet = slice.mastery.deriveForActor.mock.calls.length;
       const first = await ctx.http
         .get(`/student/exercises/${sessionId}/result`)
         .set('Cookie', cookie.student)
         .expect(200);
+      expect(first.headers['cache-control']).toBe('no-store');
+      expect(first.body.integrityStatus).toBe('RECOVERY_REQUIRED');
+      expect(slice.events.record).toHaveBeenCalledTimes(eventCallsBeforeGet);
+      expect(slice.mastery.deriveForActor).toHaveBeenCalledTimes(masteryCallsBeforeGet);
       const replay = await ctx.http
         .post(`/student/exercises/${sessionId}/answers`)
         .set('Cookie', cookie.student)
@@ -555,6 +599,25 @@ describe('student HTTP loop (isolated slice, no DB)', () => {
         .send({ submissionToken: 'x', answer: 'i1' });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('STUDENT_INVALID_TOKEN');
+    });
+
+    it('returns a safe HTTP 409 for semantic evidence collision', async () => {
+      const next = await ctx.http
+        .post('/student/exercises/next')
+        .set('Cookie', cookie.student)
+        .set('X-CSRF-Token', csrf.student)
+        .send()
+        .expect(201);
+      slice.events.record.mockRejectedValueOnce(new LearningEventConflictError());
+
+      const res = await ctx.http
+        .post(`/student/exercises/${next.body.sessionId}/answers`)
+        .set('Cookie', cookie.student)
+        .set('X-CSRF-Token', csrf.student)
+        .send({ submissionToken: `${TOKEN}-collision`, answer: 'i1' });
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('STUDENT_SUBMISSION_CONFLICT');
+      expect(JSON.stringify(res.body)).not.toMatch(/P2002|Prisma|publicId|outcome/i);
     });
   });
 });

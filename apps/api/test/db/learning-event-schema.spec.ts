@@ -120,7 +120,7 @@ describe('CP-03 learning-events schema', () => {
     // header) so we assert on executable DDL only.
     const sql = fs
       .readFileSync(CP03_MIGRATION, 'utf8')
-      .split('\n')
+      .split(/\r?\n/)
       .map((line) => line.replace(/--.*$/, ''))
       .join('\n')
       .toLowerCase();

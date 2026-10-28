@@ -13,7 +13,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test": "echo \"no web tests yet (CLP-00-08)\" && exit 0"
+    "test": "jest --config jest.config.cjs --runInBand"
   },
   "dependencies": {
     "react": "^19.1.0",
