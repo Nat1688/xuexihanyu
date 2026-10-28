@@ -40,3 +40,6 @@ prisma/generated/
 # Local migration dev scratch (never commit a local db file)
 *.db
 *.db-journal
+
+# OCI-01B2 local verification outputs (never review/commit runtime artifacts).
+/deploy/oci01b2/evidence-local/

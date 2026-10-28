@@ -1,0 +1,21 @@
+# Combine with compose.yaml. Separate project => separate volume/network/container identity.
+name: clp-local-trial
+services:
+  db:
+    environment:
+      POSTGRES_DB: clp_local_trial
+      POSTGRES_USER: clp_local_trial
+    restart: unless-stopped
+  migrate:
+    environment:
+      POSTGRES_DB: clp_local_trial
+      POSTGRES_USER: clp_local_trial
+      CLP_RUNTIME_PROFILE: local-trial
+  api:
+    environment:
+      POSTGRES_DB: clp_local_trial
+      POSTGRES_USER: clp_local_trial
+      CLP_RUNTIME_PROFILE: local-trial
+    restart: unless-stopped
+  web:
+    restart: unless-stopped

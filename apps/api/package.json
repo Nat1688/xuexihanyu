@@ -4,10 +4,10 @@
   "private": true,
   "description": "CLP NestJS REST API skeleton (empty module boundaries + safe health scaffold).",
   "license": "UNLICENSED",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "scripts": {
     "build": "nest build && node dist/src/modules/lesson-preview/validate-build.js",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",

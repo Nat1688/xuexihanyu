@@ -1,0 +1,26 @@
+# NEW disposable restore target ONLY. Never attach a trial volume here.
+name: clp-restore-check
+services:
+  db:
+    image: postgres:17.11-bookworm
+    platform: ${CLP_PLATFORM:-linux/arm64}
+    environment:
+      POSTGRES_DB: clp_restore_check
+      POSTGRES_USER: clp_restore_check
+      POSTGRES_PASSWORD: ${CLP_RESTORE_PASSWORD:?Separate restore password required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - restore-pg17:/var/lib/postgresql/data
+    networks: [restore]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    mem_limit: 512m
+    restart: 'no'
+networks:
+  restore:
+    internal: true
+volumes:
+  restore-pg17:
