@@ -1,5 +1,10 @@
 # OCI-01B2 — Mac mini First review handoff
 
+R1 historical report below. Superseded for build acceptance by
+[R2 context correction](R2-CONTEXT-CORRECTION.md): Owner reported R1 context audit
+FAIL; R2 Mac audit/build acceptance is NOT_RUN. Do not interpret R1 preparation
+checks as image-build success. Original frozen ZIP remains unchanged.
+
 Status: packaging and runbooks prepared; Owner review required. New Docker image,
 Compose, persistence, restore and browser acceptance remain NOT_RUN on Mac.
 No stage, commit, Main merge, push, cloud provisioning or Mac deployment performed.

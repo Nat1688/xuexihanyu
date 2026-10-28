@@ -8,9 +8,10 @@ RUN node -e "if(process.platform!=='linux'||!['arm64','x64'].includes(process.ar
 
 FROM base AS context-audit
 COPY . /context
-RUN node /context/deploy/oci01b2/audit-context.cjs /context
+RUN node /context/deploy/oci01b2/audit-context.cjs /context && touch /context-audit.ok
 
 FROM base AS dependencies
+RUN --mount=type=bind,from=context-audit,source=/context-audit.ok,target=/context-audit.ok test -f /context-audit.ok
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json

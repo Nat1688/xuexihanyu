@@ -8,7 +8,7 @@ const out = path.join(__dirname, 'evidence-local', 'logs');
 fs.mkdirSync(out, { recursive: true });
 const git = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
 if (
-  git(['rev-parse', 'HEAD']) !== '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194' ||
+  git(['rev-parse', 'HEAD']) !== 'a09ea0c4bf742fa8e0390a818a4e4843519dc817' ||
   git(['branch', '--show-current']) !== 'feature/oci-01b2-arm64-packaging' ||
   git(['diff', '--cached', '--name-only'])
 )
@@ -30,7 +30,7 @@ const steps = [
   ],
   [
     'packaging',
-    'node --test deploy/oci01b2/packaging.test.cjs deploy/oci01b2/compose.test.cjs deploy/oci01b2/database.test.cjs',
+    'node --test deploy/oci01b2/packaging.test.cjs deploy/oci01b2/context.test.cjs deploy/oci01b2/compose.test.cjs deploy/oci01b2/database.test.cjs',
   ],
   [
     'targeted',

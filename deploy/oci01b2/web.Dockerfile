@@ -1,11 +1,18 @@
 # syntax=docker/dockerfile:1
 ARG NODE_IMAGE=node:22-bookworm-slim
 ARG NGINX_IMAGE=nginx:stable-bookworm
-FROM ${NODE_IMAGE} AS build
+FROM ${NODE_IMAGE} AS base
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 RUN node -e "if(process.platform!=='linux'||!['arm64','x64'].includes(process.arch)||process.versions.node.split('.')[0]!=='22')process.exit(1)"
+
+FROM base AS context-audit
+COPY . /context
+RUN node /context/deploy/oci01b2/audit-context.cjs /context && touch /context-audit.ok
+
+FROM base AS build
+RUN --mount=type=bind,from=context-audit,source=/context-audit.ok,target=/context-audit.ok test -f /context-audit.ok
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json

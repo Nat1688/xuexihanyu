@@ -6,7 +6,8 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const repo = path.resolve(__dirname, '../..');
 const baseline = '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194';
-const out = path.join(__dirname, 'evidence-local', 'review-package-mac-first');
+const checkpoint = 'a09ea0c4bf742fa8e0390a818a4e4843519dc817';
+const out = path.join(__dirname, 'evidence-local', 'review-package-mac-first-r2');
 function git(args, allow = [0]) {
   const r = spawnSync('git', args, {
     cwd: repo,
@@ -25,7 +26,7 @@ const quality = JSON.parse(
 if (!quality.results?.length || quality.results.some((r) => r.exitCode !== 0))
   throw Error('QUALITY_GATES_NOT_PASSING');
 if (
-  git(['rev-parse', 'HEAD']).trim() !== baseline ||
+  git(['rev-parse', 'HEAD']).trim() !== checkpoint ||
   git(['diff', '--cached', '--name-only']).trim()
 )
   throw Error('Unexpected HEAD/index');
@@ -43,7 +44,8 @@ if (
 )
   throw Error('Protected application source changed');
 const added = lines(git(['ls-files', '--others', '--exclude-standard']));
-const files = [...lines(git(['diff', '--name-only'])), ...added].sort();
+const files = [...lines(git(['diff', baseline, '--name-only'])), ...added].sort();
+const incrementalFiles = [...lines(git(['diff', checkpoint, '--name-only'])), ...added].sort();
 if (
   files.some(
     (f) =>
@@ -57,6 +59,15 @@ let patch = git(['diff', '--binary', baseline, '--']);
 for (const file of added.sort())
   patch += git(['diff', '--no-index', '--binary', '--', '/dev/null', file], [1]);
 fs.writeFileSync(path.join(out, 'OCI01B2-full.patch'), patch);
+fs.writeFileSync(
+  path.join(out, 'OCI01B2-incremental-r2.patch'),
+  git(['diff', '--binary', checkpoint, '--']) +
+    added.map((f) => git(['diff', '--no-index', '--binary', '--', '/dev/null', f], [1])).join(''),
+);
+fs.writeFileSync(
+  path.join(out, 'INCREMENTAL-FILES.json'),
+  JSON.stringify(incrementalFiles, null, 2),
+);
 const records = [];
 for (const file of files) {
   const bytes = fs.readFileSync(path.join(repo, file));
@@ -96,7 +107,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       baseline,
-      revision: 'mac-first-review-1',
+      revision: 'mac-first-review-2',
       note: 'Frozen Windows export. Mac extracts/verifies/builds only; no source edits. No credentials, host dependencies, compiled artifacts or seed tools.',
       files: buildFiles,
     },
@@ -138,9 +149,10 @@ fs.writeFileSync(
       baseline,
       branch: 'feature/oci-01b2-arm64-packaging',
       staged: false,
-      committed: false,
+      checkpoint,
+      uncommittedCorrection: true,
       armEvidence:
-        'Owner-provided baseline; Mac First packaging/restore/browser/reboot acceptance PENDING',
+        'R1 M01 Owner PASS; R1 context-audit FAIL. R2 Mac M01-M03 NOT_RUN; no inherited audit/build PASS.',
       entries: entries.sort((a, b) => a.path.localeCompare(b.path)),
       note: 'Manifest excludes itself; no runtime secrets/artifacts in package.',
     },
