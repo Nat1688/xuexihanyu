@@ -1,5 +1,9 @@
 # OCI-01B2 — Mac mini First review handoff
 
+Current correction: [R3 Nginx read-only fix](R3-NGINX-CORRECTION.md).
+Owner reports R2 M01–M03/M04-A PASS, M04-B web FAIL. R3 actual Docker/Nginx runtime
+regression and rebuild are NOT_RUN; no persistent services/volumes changed here.
+
 R1 historical report below. Superseded for build acceptance by
 [R2 context correction](R2-CONTEXT-CORRECTION.md): Owner reported R1 context audit
 FAIL; R2 Mac audit/build acceptance is NOT_RUN. Do not interpret R1 preparation

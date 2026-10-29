@@ -6,8 +6,8 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const repo = path.resolve(__dirname, '../..');
 const baseline = '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194';
-const checkpoint = 'a09ea0c4bf742fa8e0390a818a4e4843519dc817';
-const out = path.join(__dirname, 'evidence-local', 'review-package-mac-first-r2');
+const checkpoint = '446428f0285cd6fb5058637a5bd84a9da542b6bf';
+const out = path.join(__dirname, 'evidence-local', 'review-package-mac-first-r3a');
 function git(args, allow = [0]) {
   const r = spawnSync('git', args, {
     cwd: repo,
@@ -21,7 +21,7 @@ function git(args, allow = [0]) {
 const lines = (value) => value.trim().split(/\r?\n/).filter(Boolean);
 const hash = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const quality = JSON.parse(
-  fs.readFileSync(path.join(__dirname, 'evidence-local', 'quality-results.json'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, 'evidence-local', 'quality-results-r3a.json'), 'utf8'),
 );
 if (!quality.results?.length || quality.results.some((r) => r.exitCode !== 0))
   throw Error('QUALITY_GATES_NOT_PASSING');
@@ -60,7 +60,7 @@ for (const file of added.sort())
   patch += git(['diff', '--no-index', '--binary', '--', '/dev/null', file], [1]);
 fs.writeFileSync(path.join(out, 'OCI01B2-full.patch'), patch);
 fs.writeFileSync(
-  path.join(out, 'OCI01B2-incremental-r2.patch'),
+  path.join(out, 'OCI01B2-incremental-r3a.patch'),
   git(['diff', '--binary', checkpoint, '--']) +
     added.map((f) => git(['diff', '--no-index', '--binary', '--', '/dev/null', f], [1])).join(''),
 );
@@ -78,7 +78,7 @@ for (const file of files) {
 }
 fs.writeFileSync(path.join(out, 'FILES.json'), JSON.stringify(records, null, 2));
 fs.copyFileSync(
-  path.join(__dirname, 'evidence-local', 'quality-results.json'),
+  path.join(__dirname, 'evidence-local', 'quality-results-r3a.json'),
   path.join(out, 'quality-results.json'),
 );
 // Frozen build/acceptance source is authored here on Windows, never patched on Mac.
@@ -107,7 +107,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       baseline,
-      revision: 'mac-first-review-2',
+      revision: 'mac-first-review-3a',
       note: 'Frozen Windows export. Mac extracts/verifies/builds only; no source edits. No credentials, host dependencies, compiled artifacts or seed tools.',
       files: buildFiles,
     },
@@ -152,7 +152,7 @@ fs.writeFileSync(
       checkpoint,
       uncommittedCorrection: true,
       armEvidence:
-        'R1 M01 Owner PASS; R1 context-audit FAIL. R2 Mac M01-M03 NOT_RUN; no inherited audit/build PASS.',
+        'Owner R2 M01-M03/M04-A PASS; M04-B web FAIL (read-only Nginx temp). R3 Mac build/runtime regression NOT_RUN.',
       entries: entries.sort((a, b) => a.path.localeCompare(b.path)),
       note: 'Manifest excludes itself; no runtime secrets/artifacts in package.',
     },

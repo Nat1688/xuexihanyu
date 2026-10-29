@@ -7,6 +7,52 @@ const path = require('node:path');
 const { buildEnvironment } = require('./runtime.cjs');
 const { audit } = require('./audit-context.cjs');
 const read = (file) => fs.readFileSync(path.join(__dirname, file), 'utf8');
+function readinessChecks(ready) {
+  // Execute the actual poll/assert expressions from the Docker harness, without
+  // registering its real Docker test or invoking containers on Windows.
+  const source = read('nginx-readonly.int.cjs');
+  const poll = source.match(/if \((ready[^\n]+)\) break;/);
+  const final = source.match(/assert\.equal\((ready[^,\n]+), 'up'\);/);
+  assert.ok(poll && final, 'readiness checks must remain covered');
+  const vm = require('node:vm');
+  return {
+    stopPolling: vm.runInNewContext('(' + poll[1] + ')', { ready }),
+    database: vm.runInNewContext('(' + final[1] + ')', { ready }),
+  };
+}
+test('real readiness response dependencies.database satisfies both Docker harness checks', () => {
+  const result = readinessChecks({ status: 'ok', dependencies: { database: 'up' } });
+  assert.equal(result.stopPolling, true);
+  assert.equal(result.database, 'up');
+});
+test('flat, missing, down and unconfigured readiness cannot pass the Docker harness', () => {
+  for (const ready of [
+    undefined,
+    null,
+    {},
+    { status: 'ok', database: 'up' },
+    { status: 'error', database: 'up', dependencies: { database: 'down' } },
+    { status: 'ok', dependencies: { database: 'not-configured' } },
+  ]) {
+    const result = readinessChecks(ready);
+    assert.equal(result.stopPolling, false);
+    assert.notEqual(result.database, 'up');
+  }
+});
+test('all Nginx temporary paths use the existing writable /tmp mount', () => {
+  const nginx = read('nginx.conf');
+  for (const name of ['client_body', 'proxy', 'fastcgi', 'uwsgi', 'scgi'])
+    assert.match(nginx, new RegExp(name + '_temp_path /tmp/[a-z_]+;'));
+  assert.match(nginx, /pid \/tmp\/nginx.pid;/);
+  assert.doesNotMatch(nginx, /\/var\/cache\/nginx/);
+  const yaml = require('js-yaml');
+  const web = yaml.load(read('compose.yaml')).services.web;
+  assert.equal(web.read_only, true);
+  assert.deepEqual(web.tmpfs, ['/tmp']);
+  assert.deepEqual(web.cap_drop, ['ALL']);
+  assert.deepEqual(web.security_opt, ['no-new-privileges:true']);
+  assert.match(read('web.Dockerfile'), /USER nginx/);
+});
 function fixture() {
   return {
     NODE_ENV: 'production',

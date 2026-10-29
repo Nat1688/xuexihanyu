@@ -8,7 +8,7 @@ const out = path.join(__dirname, 'evidence-local', 'logs');
 fs.mkdirSync(out, { recursive: true });
 const git = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
 if (
-  git(['rev-parse', 'HEAD']) !== 'a09ea0c4bf742fa8e0390a818a4e4843519dc817' ||
+  git(['rev-parse', 'HEAD']) !== '446428f0285cd6fb5058637a5bd84a9da542b6bf' ||
   git(['branch', '--show-current']) !== 'feature/oci-01b2-arm64-packaging' ||
   git(['diff', '--cached', '--name-only'])
 )
