@@ -54,6 +54,7 @@ const APPROVED_MODELS = new Set([
   'AnswerSubmission',
   // CP-06 teacher MVP: classes, enrollments, assignments, private notes.
   'TeachingClass',
+  'ClassInvitation',
   'ClassEnrollment',
   'LessonAssignment',
   'TeacherNote',
@@ -77,6 +78,7 @@ const APPROVED_TABLES = new Set([
   'answer_submissions',
   // CP-06 teacher MVP.
   'teaching_classes',
+  'class_invitations',
   'class_enrollments',
   'lesson_assignments',
   'teacher_notes',

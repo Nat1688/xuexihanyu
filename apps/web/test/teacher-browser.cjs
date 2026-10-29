@@ -133,6 +133,7 @@ async function main() {
       const context = await browser.newContext({
         viewport: { width: 1440, height: 1000 },
         colorScheme: 'light',
+        locale: 'en-US',
       });
       const csrf = randomBytes(24).toString('base64url');
       await context.addCookies([{ name: 'clp_csrf', value: csrf, url: origin }]);
@@ -182,6 +183,7 @@ async function main() {
               });
         if (p === '/auth/logout')
           return options.logoutFailure ? fail(500) : route.fulfill({ status: 204 });
+        if (p.endsWith('/lesson-01/availability')) return send({ available: false });
         if (p === '/student/today')
           return send({
             generatedAt: '',
@@ -240,6 +242,8 @@ async function main() {
       try {
         await page.goto(origin);
         await run(page, calls);
+        assert.equal(await page.locator('html').getAttribute('lang'), 'vi');
+        assert.equal(await page.title(), 'XueXiHanyu — Học tiếng Trung');
         assert.deepEqual(errors, [], 'No browser runtime errors');
         assert.equal(
           await page.evaluate(() => localStorage.length + sessionStorage.length),
@@ -254,18 +258,18 @@ async function main() {
     }
     const openClass = async (page) => {
       await page.getByRole('button', { name: /Mandarin foundations/ }).click();
-      await visible(page.getByRole('heading', { name: 'Students', exact: true }));
+      await visible(page.getByRole('heading', { name: 'Học viên', exact: true }));
     };
     const openStudent = async (page) => {
       await openClass(page);
-      await page.getByRole('button', { name: /View progress for Linh/ }).click();
+      await page.getByRole('button', { name: /Xem tiến độ của Linh/ }).click();
       await visible(page.getByRole('heading', { name: 'Linh Nguyen', exact: true }));
     };
     async function screenshot(page, name) {
       await page.evaluate(() => {
         const label = document.createElement('div');
         label.id = 'test-evidence-label';
-        label.textContent = 'TW-01 · SYNTHETIC BROWSER TEST FIXTURE · NOT LIVE STUDENT DATA';
+        label.textContent = 'VI-01 · DỮ LIỆU GIẢ LẬP · KIỂM THỬ GIAO DIỆN';
         label.style.cssText =
           'padding:8px;background:#fff4c9;color:#332800;font:12px sans-serif;text-align:center';
         document.body.prepend(label);
@@ -277,25 +281,31 @@ async function main() {
       'PR-01 pending class creation cannot be closed',
       { createDelay: 1200 },
       async (page, calls) => {
-        await page.getByRole('button', { name: '+ New class' }).click();
-        await page.getByLabel('Class name').fill('Pending class');
-        await page.getByRole('button', { name: 'Create class', exact: true }).click();
+        await page.getByRole('button', { name: '+ Tạo lớp' }).click();
+        await page.getByLabel('Tên lớp').fill('Pending class');
+        await page.getByRole('button', { name: 'Tạo lớp', exact: true }).click();
         assert.ok(
-          await page.getByRole('button', { name: 'Close form', exact: true }).isDisabled(),
+          await page.getByRole('button', { name: 'Đóng biểu mẫu', exact: true }).isDisabled(),
           'P2-02 close must be disabled during POST',
         );
-        assert.ok(await page.getByRole('button', { name: 'Sign out', exact: true }).isDisabled());
+        assert.ok(await page.getByRole('button', { name: 'Đăng xuất', exact: true }).isDisabled());
         await visible(page.getByRole('button', { name: /Pending class/ }));
         assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
       },
     );
     await scenario('dashboard roster progress and responsive views', {}, async (page, calls) => {
-      await visible(page.getByRole('heading', { name: 'Your teaching space' }));
+      await visible(page.getByRole('heading', { name: 'Không gian giảng dạy' }));
       await screenshot(page, '01-dashboard-desktop');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await screenshot(page, '07-dashboard-mobile');
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await openClass(page);
-      await visible(page.getByRole('button', { name: /View progress for Linh/ }));
+      await visible(page.getByRole('button', { name: /Xem tiến độ của Linh/ }));
       await screenshot(page, '02-class-roster');
-      await page.getByRole('button', { name: /View progress for Linh/ }).click();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await screenshot(page, '08-roster-mobile');
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.getByRole('button', { name: /Xem tiến độ của Linh/ }).click();
       await visible(page.getByText('75%', { exact: true }));
       assert.equal(
         await page
@@ -316,10 +326,10 @@ async function main() {
       'create class exact DTO CSRF and double-click protection',
       {},
       async (page, calls) => {
-        await page.getByRole('button', { name: '+ New class' }).click();
-        await page.getByLabel('Class name').fill('Evening practice');
-        await page.getByLabel('Term (optional)').fill('Winter');
-        await page.getByRole('button', { name: 'Create class', exact: true }).dblclick();
+        await page.getByRole('button', { name: '+ Tạo lớp' }).click();
+        await page.getByLabel('Tên lớp').fill('Evening practice');
+        await page.getByLabel('Học kỳ (không bắt buộc)').fill('Winter');
+        await page.getByRole('button', { name: 'Tạo lớp', exact: true }).dblclick();
         await visible(page.getByRole('button', { name: /Evening practice/ }));
         const posts = calls.filter((call) => call.method === 'POST');
         assert.equal(posts.length, 1);
@@ -329,13 +339,13 @@ async function main() {
     );
     await scenario('assign published lesson and refresh evidence', {}, async (page, calls) => {
       await openStudent(page);
-      await page.getByLabel('Course', { exact: true }).selectOption(id(4));
-      await page.getByLabel('Unit', { exact: true }).selectOption(id(5));
-      await page.getByLabel('Published lesson').selectOption(id(6));
+      await page.getByLabel('Khóa học', { exact: true }).selectOption(id(4));
+      await page.getByLabel('Chương', { exact: true }).selectOption(id(5));
+      await page.getByLabel('Bài học đã xuất bản').selectOption(id(6));
       assert.equal(await page.getByRole('option', { name: 'Private draft' }).count(), 0);
       await screenshot(page, '06-assignment-form');
-      await page.getByRole('button', { name: 'Assign lesson', exact: true }).dblclick();
-      await visible(page.getByText('Lesson assigned.', { exact: true }));
+      await page.getByRole('button', { name: 'Giao bài học', exact: true }).dblclick();
+      await visible(page.getByText('Đã giao bài học.', { exact: true }));
       await visible(page.getByText('Daily routines', { exact: true }));
       const posts = calls.filter((call) => call.method === 'POST');
       assert.equal(posts.length, 1);
@@ -343,21 +353,21 @@ async function main() {
       assert.deepEqual(posts[0].body, { studentId: id(2), lessonId: id(6), dueAt: null });
     });
     await scenario('empty dashboard', { empty: true }, async (page) => {
-      await visible(page.getByText('A fresh start for your classroom'));
+      await visible(page.getByText('Bắt đầu với lớp học mới'));
     });
     await scenario('empty roster', { emptyRoster: true }, async (page) => {
       await openClass(page);
-      await visible(page.getByText('No students enrolled yet'));
+      await visible(page.getByText('Chưa có học viên ghi danh'));
     });
     const networkOptions = { networkFailure: true };
     await scenario('network error retry', networkOptions, async (page) => {
       await visible(page.getByRole('alert'));
       networkOptions.networkFailure = false;
-      await page.getByRole('button', { name: 'Retry', exact: true }).click();
+      await page.getByRole('button', { name: 'Thử lại', exact: true }).click();
       await visible(page.getByRole('button', { name: /Mandarin foundations/ }));
     });
     await scenario('loading state', { slow: true }, async (page) => {
-      await visible(page.getByText('Loading your workspace…'));
+      await visible(page.getByText('Đang tải không gian làm việc…'));
       await visible(page.getByRole('button', { name: /Mandarin foundations/ }));
     });
     await scenario(
@@ -365,20 +375,20 @@ async function main() {
       { detailDenied: 403 },
       async (page) => {
         await openClass(page);
-        await page.getByRole('button', { name: /View progress for Linh/ }).click();
+        await page.getByRole('button', { name: /Xem tiến độ của Linh/ }).click();
         await visible(page.getByRole('alert'));
         assert.equal(await page.getByRole('heading', { name: 'Linh Nguyen' }).count(), 0);
       },
     );
     await scenario('expired session returns to login', { denied: 401 }, async (page) => {
-      await visible(page.getByLabel('Password', { exact: true }));
-      assert.equal(await page.getByRole('heading', { name: 'Your teaching space' }).count(), 0);
+      await visible(page.getByLabel('Mật khẩu', { exact: true }));
+      assert.equal(await page.getByRole('heading', { name: 'Không gian giảng dạy' }).count(), 0);
     });
     await scenario(
       'student-only account does not request teacher data',
       { roles: ['STUDENT'] },
       async (page, calls) => {
-        await visible(page.getByRole('heading', { name: 'Today', exact: true }));
+        await visible(page.getByRole('heading', { name: 'Hôm nay', exact: true }));
         assert.ok(calls.every((call) => !call.path.startsWith('/teacher')));
       },
     );
@@ -386,11 +396,11 @@ async function main() {
       'dual role workspace navigation',
       { roles: ['TEACHER', 'STUDENT'] },
       async (page) => {
-        await visible(page.getByRole('heading', { name: 'Your teaching space' }));
-        await page.getByRole('button', { name: 'Student', exact: true }).click();
-        await visible(page.getByRole('heading', { name: 'Today', exact: true }));
-        await page.getByRole('button', { name: 'Teacher', exact: true }).click();
-        await visible(page.getByRole('heading', { name: 'Your teaching space' }));
+        await visible(page.getByRole('heading', { name: 'Không gian giảng dạy' }));
+        await page.getByRole('button', { name: 'Học viên', exact: true }).click();
+        await visible(page.getByRole('heading', { name: 'Hôm nay', exact: true }));
+        await page.getByRole('button', { name: 'Giáo viên', exact: true }).click();
+        await visible(page.getByRole('heading', { name: 'Không gian giảng dạy' }));
       },
     );
     await scenario(
@@ -398,9 +408,9 @@ async function main() {
       { slowDetail: true },
       async (page) => {
         await openClass(page);
-        await page.getByRole('button', { name: /View progress for Linh/ }).click();
+        await page.getByRole('button', { name: /Xem tiến độ của Linh/ }).click();
         await page.getByRole('button', { name: 'Mandarin foundations', exact: true }).click();
-        await page.getByRole('button', { name: /View progress for Minh/ }).click();
+        await page.getByRole('button', { name: /Xem tiến độ của Minh/ }).click();
         await visible(page.getByRole('heading', { name: 'Minh Tran', exact: true }));
         await pause(800);
         assert.equal(
@@ -414,28 +424,28 @@ async function main() {
       { assignmentError: 409 },
       async (page, calls) => {
         await openStudent(page);
-        await page.getByLabel('Course', { exact: true }).selectOption(id(4));
-        await page.getByLabel('Unit', { exact: true }).selectOption(id(5));
-        await page.getByLabel('Published lesson').selectOption(id(6));
-        await page.getByRole('button', { name: 'Assign lesson', exact: true }).click();
+        await page.getByLabel('Khóa học', { exact: true }).selectOption(id(4));
+        await page.getByLabel('Chương', { exact: true }).selectOption(id(5));
+        await page.getByLabel('Bài học đã xuất bản').selectOption(id(6));
+        await page.getByRole('button', { name: 'Giao bài học', exact: true }).click();
         await visible(page.getByRole('alert'));
         assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
-        assert.equal(await page.getByText('Lesson assigned.', { exact: true }).count(), 0);
+        assert.equal(await page.getByText('Đã giao bài học.', { exact: true }).count(), 0);
       },
     );
     await scenario(
       'logout failure does not pretend to revoke session',
       { logoutFailure: true },
       async (page) => {
-        await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-        await visible(page.getByText(/You have not been signed out/));
+        await page.getByRole('button', { name: 'Đăng xuất', exact: true }).click();
+        await visible(page.getByText(/Bạn chưa đăng xuất/));
       },
     );
     await scenario(
       'anonymous does not request teacher data',
       { anonymous: true },
       async (page, calls) => {
-        await visible(page.getByLabel('Password', { exact: true }));
+        await visible(page.getByLabel('Mật khẩu', { exact: true }));
         assert.ok(calls.every((call) => !call.path.startsWith('/teacher')));
       },
     );

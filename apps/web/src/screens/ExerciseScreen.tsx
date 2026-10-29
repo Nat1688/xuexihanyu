@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { exerciseMode, studentError } from '../ui-vi';
 import { ApiError, studentApi, type ExerciseView, type ResultView } from '../api/client';
 import { loadRememberedExercise, submitRememberedExercise } from '../exercise-resume';
 
@@ -48,7 +49,7 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
         onExpired();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Unable to load this exercise.');
+      setError(studentError(err, 'Không thể tải bài tập. Vui lòng thử lại.'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +78,12 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
         onExpired();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Unable to submit your answer.');
+      setError(
+        studentError(
+          err,
+          'Chưa xác nhận được kết quả nộp bài. Hãy thử lại hoặc tải lại để khôi phục.',
+        ),
+      );
     } finally {
       setSubmitting(false);
       inFlight.current = false;
@@ -86,9 +92,9 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
 
   return (
     <section aria-labelledby="exercise-heading" className="clp-card">
-      <h1 id="exercise-heading">Exercise</h1>
+      <h1 id="exercise-heading">Bài tập</h1>
 
-      {loading ? <p role="status">Loading exercise…</p> : null}
+      {loading ? <p role="status">Đang tải bài tập…</p> : null}
 
       {error ? (
         <p className="clp-error" role="alert">
@@ -104,16 +110,27 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
           }}
         >
           <p className="clp-muted">
-            <span className="clp-badge">{exercise.mode}</span>{' '}
-            <span className="clp-badge">{exercise.format.toLowerCase()}</span>
+            <span className="clp-badge">{exerciseMode(exercise.mode)}</span>{' '}
+            <span className="clp-badge">
+              {exercise.format === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm' : 'Nhập đáp án'}
+            </span>
           </p>
-          <p className="clp-prompt" lang="zh-Hans">
+          <p
+            className="clp-prompt"
+            lang={
+              exercise.mode === 'VI_TO_ZH'
+                ? 'vi'
+                : exercise.mode === 'PINYIN_TO_ZH'
+                  ? 'zh-Latn-pinyin'
+                  : 'zh-Hans'
+            }
+          >
             {exercise.prompt}
           </p>
 
           {exercise.format === 'MULTIPLE_CHOICE' && exercise.options ? (
             <fieldset className="clp-options">
-              <legend>Choose one answer</legend>
+              <legend>Chọn một đáp án</legend>
               {exercise.options.map((option) => (
                 <label key={option} className="clp-option">
                   <input
@@ -123,13 +140,23 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
                     checked={answer === option}
                     onChange={() => setAnswer(option)}
                   />
-                  <span lang="zh-Hans">{option}</span>
+                  <span
+                    lang={
+                      exercise.mode === 'ZH_TO_VI'
+                        ? 'vi'
+                        : exercise.mode === 'ZH_TO_PINYIN'
+                          ? 'zh-Latn-pinyin'
+                          : 'zh-Hans'
+                    }
+                  >
+                    {option}
+                  </span>
                 </label>
               ))}
             </fieldset>
           ) : (
             <div className="clp-field">
-              <label htmlFor="answer-input">Your answer</label>
+              <label htmlFor="answer-input">Câu trả lời của bạn</label>
               <input
                 id="answer-input"
                 className="clp-input"
@@ -146,7 +173,7 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
 
           <div className="clp-actions">
             <button type="submit" className="clp-button" disabled={submitting || !answer.trim()}>
-              {submitting ? 'Checking…' : 'Submit answer'}
+              {submitting ? 'Đang kiểm tra…' : 'Nộp đáp án'}
             </button>
           </div>
         </form>

@@ -43,3 +43,5 @@ prisma/generated/
 
 # OCI-01B2 local verification outputs (never review/commit runtime artifacts).
 /deploy/oci01b2/evidence-local/
+/deploy/vi01/evidence-local/
+/deploy/cl01/evidence-local/

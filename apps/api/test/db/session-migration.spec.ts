@@ -112,6 +112,7 @@ describe('session migration is additive (only adds sessions)', () => {
       'exercise_sessions',
       'answer_submissions',
       'teaching_classes',
+      'class_invitations',
       'class_enrollments',
       'lesson_assignments',
       'teacher_notes',

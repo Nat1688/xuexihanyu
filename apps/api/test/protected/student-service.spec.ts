@@ -286,6 +286,27 @@ describe('StudentService — TODAY', () => {
 });
 
 describe('StudentService — CONTINUE / EXERCISE', () => {
+  it('CL-01 selects only the requested published lesson and preserves session snapshots', async () => {
+    const { service, content, exerciseContent, sessions } = harness();
+    content.add('l2', ['j1', 'j2']);
+    for (const id of ['j1', 'j2'])
+      exerciseContent.addItem({
+        learningItemPublicId: id,
+        simplified: id,
+        pinyin: `p-${id}`,
+        meaning: `m-${id}`,
+      });
+    exerciseContent.addLesson('l2', ['j1', 'j2']);
+    const view = await service.startLessonExercise(ACTOR, 'l2', NOW);
+    expect(view.lessonPublicId).toBe('l2');
+    expect(view).not.toHaveProperty('answerKey');
+    expect(sessions.rows.size).toBe(1);
+    expect(await service.getExercise(ACTOR, view.sessionPublicId, NOW)).toEqual(view);
+    await expect(service.startLessonExercise(ACTOR, 'unpublished', NOW)).rejects.toBeInstanceOf(
+      StudentNoContentError,
+    );
+    expect(sessions.rows.size).toBe(1);
+  });
   it('generates the due queue item even when it is last in lesson order', async () => {
     const { service, progress, sessions } = harness();
     progress.projections = [

@@ -1,3 +1,4 @@
+import { displayNumber } from '../ui-vi';
 /**
  * RESULT screen (CP-05).
  *
@@ -18,25 +19,26 @@ export interface ResultScreenProps {
 export function ResultScreen({ result, onNext, onToday, nextBusy, nextError }: ResultScreenProps) {
   return (
     <section aria-labelledby="result-heading" className="clp-card">
-      <h1 id="result-heading">Result</h1>
+      <h1 id="result-heading">Kết quả</h1>
 
       <p
         className={`clp-status ${result.correct ? 'clp-status--ok' : 'clp-status--bad'}`}
         role="status"
         aria-live="polite"
       >
-        {result.correct ? '✓ Correct' : '✗ Not quite'}
+        {result.correct ? '✓ Chính xác' : '✗ Chưa chính xác'}
       </p>
 
       <dl>
-        <dt>Your answer</dt>
+        <dt>Câu trả lời của bạn</dt>
         <dd lang="zh-Hans">{result.received || '—'}</dd>
-        <dt>Expected</dt>
+        <dt>Đáp án đúng</dt>
         <dd lang="zh-Hans">{result.expected}</dd>
       </dl>
 
       <p className="clp-muted">
-        {result.next.completedToday} completed today · {result.next.remaining} remaining
+        {displayNumber(result.next.completedToday)} đã hoàn thành hôm nay ·{' '}
+        {displayNumber(result.next.remaining)} còn lại
       </p>
 
       {nextError ? (
@@ -47,10 +49,10 @@ export function ResultScreen({ result, onNext, onToday, nextBusy, nextError }: R
 
       <div className="clp-actions">
         <button type="button" className="clp-button" onClick={onNext} disabled={nextBusy}>
-          {nextBusy ? 'Loading next…' : 'Next exercise'}
+          {nextBusy ? 'Đang tải bài tiếp theo…' : 'Bài tập tiếp theo'}
         </button>
         <button type="button" className="clp-button clp-button--secondary" onClick={onToday}>
-          Back to Today
+          Về Hôm nay
         </button>
       </div>
     </section>

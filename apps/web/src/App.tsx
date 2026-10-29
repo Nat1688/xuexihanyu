@@ -4,11 +4,12 @@
  * Student path:
  *   LOGIN → TODAY → CONTINUE → EXERCISE → RESULT → NEXT
  *
- * TW-01 adds an API-backed Teacher workspace. Role hints select navigation,
+ * TW-01 adds an API-backed Không gian giáo viên. Role hints select navigation,
  * never permissions. On reload `/auth/me` restores the cookie session; only
  * the Student exercise identifier may be retained, never Teacher data/tokens.
  * All privileged calls are independently authorised server-side.
  */
+import { studentError, ui } from './ui-vi';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ApiError, studentApi, type Principal, type ResultView } from './api/client';
@@ -21,11 +22,13 @@ import { TeacherWorkspace } from './teacher/TeacherWorkspace';
 import { canStudy, canTeach } from './teacher/model';
 import { LessonReader } from './lesson-preview/LessonReader';
 import { PreviewEntry } from './lesson-preview/PreviewEntry';
+import { StudentWorkspace } from './classrooms/StudentWorkspace';
 
 type Step =
   | { view: 'boot' }
   | { view: 'login' }
   | { view: 'today' }
+  | { view: 'student' }
   | { view: 'lesson-preview' }
   | { view: 'teacher' }
   | { view: 'unauthorized' }
@@ -64,7 +67,7 @@ export function App() {
                   ? canTeach(me)
                     ? 'teacher'
                     : canStudy(me)
-                      ? 'today'
+                      ? 'student'
                       : 'unauthorized'
                   : 'login',
               },
@@ -103,7 +106,7 @@ export function App() {
         setStep({ view: 'today' });
         return;
       }
-      setNextError(err instanceof ApiError ? err.message : 'Unable to start the next exercise.');
+      setNextError(studentError(err, 'Không thể mở bài tập tiếp theo. Vui lòng thử lại.'));
     } finally {
       setNextBusy(false);
     }
@@ -118,22 +121,22 @@ export function App() {
   return (
     <>
       <a className="clp-skip-link" href="#clp-main">
-        Skip to main content
+        {ui.app.skip}
       </a>
       <div className={step.view === 'teacher' ? 'clp-shell tw-shell' : 'clp-shell'}>
         <header>
           <p className="clp-muted" style={{ margin: 0 }}>
-            CLP — Chinese Learning Platform
+            {ui.app.title}
           </p>
           {principal && canTeach(principal) && canStudy(principal) ? (
-            <nav className="clp-actions" aria-label="Workspace switcher">
+            <nav className="clp-actions" aria-label="Chuyển không gian học tập">
               <button
                 className="clp-button clp-button--secondary"
                 aria-pressed={step.view === 'teacher'}
                 disabled={teacherBusy}
                 onClick={() => setStep({ view: 'teacher' })}
               >
-                Teacher
+                Giáo viên
               </button>
               <button
                 className="clp-button clp-button--secondary"
@@ -142,23 +145,25 @@ export function App() {
                 onClick={() => {
                   const resumable = recalledExercise(sessionStorage);
                   setStep(
-                    resumable ? { view: 'exercise', sessionId: resumable } : { view: 'today' },
+                    resumable ? { view: 'exercise', sessionId: resumable } : { view: 'student' },
                   );
                 }}
               >
-                Student
+                Học viên
               </button>
             </nav>
           ) : null}
         </header>
         <main id="clp-main" tabIndex={-1}>
-          {step.view === 'boot' ? <p role="status">Loading…</p> : null}
+          {step.view === 'boot' ? <p role="status">{ui.common.loading}</p> : null}
 
           {step.view === 'login' ? (
             <LoginScreen
               onAuthenticated={(p) => {
                 setPrincipal(p);
-                setStep({ view: canTeach(p) ? 'teacher' : canStudy(p) ? 'today' : 'unauthorized' });
+                setStep({
+                  view: canTeach(p) ? 'teacher' : canStudy(p) ? 'student' : 'unauthorized',
+                });
               }}
             />
           ) : null}
@@ -173,13 +178,20 @@ export function App() {
           ) : null}
           {step.view === 'unauthorized' ? (
             <p role="alert">
-              No Student or Teacher workspace is available for this account. Contact your
-              administrator.
+              Tài khoản này chưa có quyền truy cập giao diện học viên hoặc giáo viên. Vui lòng liên
+              hệ quản trị viên.
             </p>
           ) : null}
 
           {step.view === 'today' && principal ? (
             <>
+              <button
+                className="clp-button clp-button--secondary"
+                onClick={() => setStep({ view: 'student' })}
+              >
+                Về không gian học viên
+              </button>
+              <p>Tự học độc lập — không phải danh sách bài được giao theo lớp.</p>
               <PreviewEntry onOpen={() => setStep({ view: 'lesson-preview' })} />
               <TodayScreen
                 principal={principal}
@@ -187,6 +199,16 @@ export function App() {
                 onLoggedOut={toLogin}
               />
             </>
+          ) : null}
+          {step.view === 'student' && principal && canStudy(principal) ? (
+            <StudentWorkspace
+              onExpired={toLogin}
+              onSelfStudy={() => setStep({ view: 'today' })}
+              onExercise={(exercise) => {
+                rememberExercise(sessionStorage, exercise.sessionId);
+                setStep({ view: 'exercise', sessionId: exercise.sessionId });
+              }}
+            />
           ) : null}
           {step.view === 'lesson-preview' && principal && canStudy(principal) ? (
             <LessonReader onBack={() => setStep({ view: 'today' })} />
@@ -204,13 +226,24 @@ export function App() {
           ) : null}
 
           {step.view === 'result' ? (
-            <ResultScreen
-              result={step.result}
-              onNext={() => void requestNext()}
-              onToday={() => setStep({ view: 'today' })}
-              nextBusy={nextBusy}
-              nextError={nextError}
-            />
+            <>
+              <button
+                className="clp-button clp-button--secondary"
+                onClick={() => setStep({ view: 'student' })}
+              >
+                Về bài được giao và lớp học
+              </button>
+              <p>
+                Nút bài tiếp theo sử dụng hàng đợi tự học, không xác nhận hoàn thành bài được giao.
+              </p>
+              <ResultScreen
+                result={step.result}
+                onNext={() => void requestNext()}
+                onToday={() => setStep({ view: 'today' })}
+                nextBusy={nextBusy}
+                nextError={nextError}
+              />
+            </>
           ) : null}
         </main>
       </div>

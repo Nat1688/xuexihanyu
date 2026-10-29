@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
+import { UI_LANGUAGE, ui } from '../ui-vi';
 import './LessonReader.css';
 import {
   previewApi,
@@ -9,7 +10,7 @@ import {
 } from './client';
 
 export function LessonReader({ onBack }: { onBack: () => void }) {
-  const [language, setLanguage] = useState<InstructionLanguage>('vi');
+  const [language, setLanguage] = useState<InstructionLanguage>(UI_LANGUAGE);
   const [lesson, setLesson] = useState<LessonPreview | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<Record<string, PracticeFeedback>>({});
@@ -42,7 +43,7 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
         }
       })
       .catch((err) => {
-        if (generation.current === id) setError(message(err, language));
+        if (generation.current === id) setError(message(err));
       });
     return () => {
       generation.current = id + 1;
@@ -68,7 +69,7 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
       )
         setFeedback((previous) => ({ ...previous, [taskId]: result }));
     } catch (err) {
-      if (generation.current === id) setError(message(err, language));
+      if (generation.current === id) setError(message(err));
     } finally {
       if (generation.current === id) {
         setBusy(false);
@@ -76,33 +77,25 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
       }
     }
   }
-  const vi = language === 'vi';
   return (
     <section className="clp-card" aria-labelledby="preview-heading">
-      <h1 id="preview-heading">Lesson 01 · PREVIEW</h1>
-      <p role="note">
-        PREVIEW_ONLY ·{' '}
-        {vi
-          ? 'Chờ giáo viên chuyên môn duyệt. Tự luyện — chưa lưu tiến độ.'
-          : 'Awaiting specialist review. Practice — progress is not saved.'}
+      <h1 id="preview-heading">{ui.preview.title}</h1>
+      <p role="note" data-publication-status="PREVIEW_ONLY">
+        {ui.preview.notice}
       </p>
-      <p>
-        {vi
-          ? 'Reload sẽ xóa trạng thái tự luyện chưa lưu. Nghe/nói cần giáo viên quan sát.'
-          : 'Reload resets unsaved practice. Listening/speaking requires teacher observation.'}
-      </p>
-      <label htmlFor="instruction-language">Instruction language / Ngôn ngữ hướng dẫn</label>{' '}
+      <p>{ui.preview.reload}</p>
+      <label htmlFor="instruction-language">{ui.preview.language}</label>{' '}
       <select
         id="instruction-language"
         value={language}
         disabled={busy}
         onChange={(e) => setLanguage(e.target.value as InstructionLanguage)}
       >
-        <option value="vi">Tiếng Việt</option>
-        <option value="en">English</option>
+        <option value="vi">{ui.preview.vi}</option>
+        <option value="en">{ui.preview.en}</option>
       </select>
       <button type="button" className="clp-button clp-button--secondary" onClick={onBack}>
-        Back to Today
+        {ui.preview.back}
       </button>
       {error ? (
         <div role="alert">
@@ -115,29 +108,33 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
             }}
             disabled={busy}
           >
-            {vi ? 'Tải lại bài' : 'Reload lesson'}
+            Tải lại bài
           </button>
         </div>
       ) : null}
-      {!lesson && !error ? <p role="status">{vi ? 'Đang tải bài…' : 'Loading lesson…'}</p> : null}
+      {!lesson && !error ? <p role="status">Đang tải bài…</p> : null}
       {lesson ? (
-        <article lang={language}>
-          <h2>{lesson.title}</h2>
-          <p>{lesson.notice}</p>
-          <small>Revision: {lesson.revision}</small>
+        <article lang={UI_LANGUAGE}>
+          <h2 lang={language}>{lesson.title}</h2>
+          <p lang={language}>{lesson.notice}</p>
+          <small>
+            {ui.preview.revision}: {lesson.revision}
+          </small>
           <ul>
             {lesson.objectives.map((x) => (
-              <li key={x}>{x}</li>
+              <li key={x} lang={language}>
+                {x}
+              </li>
             ))}
           </ul>
-          <h2>{vi ? 'Từ và ngữ cảnh' : 'Words and context'}</h2>
+          <h2>Từ và ngữ cảnh</h2>
           <div style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
                   <th>中文</th>
                   <th>Pinyin</th>
-                  <th>{vi ? 'Nghĩa' : 'Meaning'}</th>
+                  <th>Nghĩa</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,29 +142,29 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
                   <tr key={c.id}>
                     <td lang="zh-Hans">{c.hanzi}</td>
                     <td lang="zh-Latn-pinyin">{c.pinyin}</td>
-                    <td>{c.gloss}</td>
+                    <td lang={language}>{c.gloss}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {lesson.blocks.map((block) => (
-            <section key={block.id}>
+            <section key={block.id} lang={language}>
               <h2>{block.title}</h2>
               <p>{block.text}</p>
             </section>
           ))}
-          <h2>{vi ? 'Hội thoại' : 'Dialogue'}</h2>
+          <h2>Hội thoại</h2>
           {lesson.dialogue.map((line, i) => (
             <p key={i}>
               {line.speaker}: <span lang="zh-Hans">{line.hanzi}</span>
               <br />
               <span lang="zh-Latn-pinyin">{line.pinyin}</span>
               <br />
-              {line.translation}
+              <span lang={language}>{line.translation}</span>
             </p>
           ))}
-          <h2>{vi ? 'Tự luyện — chưa lưu tiến độ' : 'Practice — progress is not saved'}</h2>
+          <h2>Tự luyện — chưa lưu tiến độ</h2>
           {lesson.practices.map((task) => (
             <form
               key={task.taskId}
@@ -178,7 +175,7 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
             >
               <fieldset disabled={busy}>
                 <legend>
-                  {task.taskId}: {task.prompt}
+                  {task.taskId}: <span lang={language}>{task.prompt}</span>
                 </legend>
                 {task.options ? (
                   task.options.map((option) => (
@@ -202,9 +199,7 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
                   ))
                 ) : (
                   <>
-                    <label htmlFor={`practice-${task.taskId}`}>
-                      {vi ? 'Câu trả lời' : 'Your answer'}
-                    </label>
+                    <label htmlFor={`practice-${task.taskId}`}>Câu trả lời</label>
                     <input
                       id={`practice-${task.taskId}`}
                       value={answers[task.taskId] ?? ''}
@@ -222,10 +217,14 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
                   </>
                 )}
                 <button type="submit" disabled={!answers[task.taskId]?.trim()}>
-                  {vi ? 'Kiểm tra' : 'Check'} {task.taskId}
+                  Kiểm tra {task.taskId}
                 </button>
               </fieldset>
-              {feedback[task.taskId] ? <p role="status">{feedback[task.taskId].feedback}</p> : null}
+              {feedback[task.taskId] ? (
+                <p role="status" lang={language}>
+                  {feedback[task.taskId].feedback}
+                </p>
+              ) : null}
             </form>
           ))}
         </article>
@@ -233,20 +232,11 @@ export function LessonReader({ onBack }: { onBack: () => void }) {
     </section>
   );
 }
-function message(error: unknown, language: InstructionLanguage) {
+function message(error: unknown) {
   if (error instanceof ApiError && error.status === 401)
-    return language === 'vi'
-      ? 'Phiên đăng nhập đã hết hạn. Quay lại và đăng nhập.'
-      : 'Session expired. Return and sign in.';
-  if (error instanceof ApiError && error.status === 404)
-    return language === 'vi'
-      ? 'Bản preview hoặc revision không khả dụng. Tải lại bài hoặc quay lại Today.'
-      : 'Preview or revision unavailable. Reload the lesson or return to Today.';
+    return 'Phiên đăng nhập đã hết hạn. Hãy quay lại và đăng nhập.';
+  if (error instanceof ApiError && error.status === 404) return ui.preview.unavailable;
   if (error instanceof ApiError && error.status === 403)
-    return language === 'vi'
-      ? 'Không có quyền hoặc phiên CSRF không hợp lệ.'
-      : 'Permission or CSRF check failed.';
-  return language === 'vi'
-    ? 'Không thể tải hoặc kiểm tra bài. Hãy thử lại.'
-    : 'Unable to load or check practice. Please retry.';
+    return 'Bạn không có quyền truy cập hoặc kiểm tra bảo mật không thành công.';
+  return 'Không thể tải hoặc kiểm tra bài. Vui lòng thử lại.';
 }

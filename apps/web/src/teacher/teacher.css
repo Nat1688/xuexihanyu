@@ -224,6 +224,8 @@
   background: #eaf0e3;
 }
 .tw-table-wrap {
+  /* Keep absolute screen-reader labels inside the horizontally scrolling roster. */
+  position: relative;
   overflow-x: auto;
 }
 .tw-table {

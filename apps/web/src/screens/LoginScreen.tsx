@@ -7,7 +7,8 @@
  */
 import { type FormEvent, useState } from 'react';
 
-import { ApiError, studentApi, type Principal } from '../api/client';
+import { studentError, ui } from '../ui-vi';
+import { studentApi, type Principal } from '../api/client';
 
 export interface LoginScreenProps {
   onAuthenticated: (principal: Principal) => void;
@@ -29,7 +30,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       onAuthenticated(principal);
     } catch (err) {
       setPassword('');
-      setError(err instanceof ApiError ? err.message : 'Unable to sign in. Please try again.');
+      setError(studentError(err, 'Không thể đăng nhập. Vui lòng thử lại.'));
     } finally {
       setBusy(false);
     }
@@ -37,8 +38,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   return (
     <section aria-labelledby="login-heading" className="clp-card">
-      <h1 id="login-heading">Sign in</h1>
-      <p className="clp-muted">Use your Chinese Learning Platform account.</p>
+      <h1 id="login-heading">{ui.login.title}</h1>
+      <p className="clp-muted">Đăng nhập bằng tài khoản XueXiHanyu của bạn.</p>
 
       {error ? (
         <p className="clp-error" role="alert">
@@ -48,7 +49,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
       <form onSubmit={onSubmit} noValidate>
         <div className="clp-field">
-          <label htmlFor="login-name">Login</label>
+          <label htmlFor="login-name">{ui.login.login}</label>
           <input
             id="login-name"
             className="clp-input"
@@ -62,7 +63,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           />
         </div>
         <div className="clp-field">
-          <label htmlFor="login-password">Password</label>
+          <label htmlFor="login-password">{ui.login.passwordLabel}</label>
           <input
             id="login-password"
             className="clp-input"
@@ -76,7 +77,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         </div>
         <div className="clp-actions">
           <button type="submit" className="clp-button" disabled={busy || !login || !password}>
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? ui.login.busy : ui.login.title}
           </button>
         </div>
       </form>

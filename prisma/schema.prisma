@@ -589,9 +589,25 @@ model TeachingClass {
   enrollments ClassEnrollment[]
   assignments LessonAssignment[]
   notes       TeacherNote[]
+  invitation  ClassInvitation?
 
   @@index([ownerId, createdAt])
   @@map("teaching_classes")
+}
+
+// CL-01: only a digest is persisted; rotation replaces the current invitation.
+model ClassInvitation {
+  id        String    @id @default(uuid()) @db.Uuid
+  classId   String    @unique @map("class_id") @db.Uuid
+  codeHash  String    @unique @map("code_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class TeachingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("class_invitations")
 }
 
 model ClassEnrollment {

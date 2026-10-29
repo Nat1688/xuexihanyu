@@ -239,6 +239,33 @@ export class StudentService {
     const candidate = pickExerciseItem(pool.slice(0, goal), completedToday);
     if (!candidate) throw new StudentNoContentError();
 
+    return this.issueCandidate(actor, candidate, now);
+  }
+
+  /** CL-01: caller authorizes the assignment; this boundary still requires published content. */
+  async startLessonExercise(
+    actor: ActorContext,
+    lessonPublicId: string,
+    now: Date,
+  ): Promise<ExerciseView> {
+    this.assertStudent(actor);
+    const pool = (await this.buildPool(actor, now)).filter(
+      (row) => row.lessonPublicId === lessonPublicId,
+    );
+    const count = await this.deps.progress.countSubmissionsSince(
+      actor.publicId,
+      startOfUtcDay(now),
+    );
+    const candidate = pickExerciseItem(pool, count);
+    if (!candidate) throw new StudentNoContentError();
+    return this.issueCandidate(actor, candidate, now);
+  }
+
+  private async issueCandidate(
+    actor: ActorContext,
+    candidate: Candidate,
+    now: Date,
+  ): Promise<ExerciseView> {
     // Queue priority is independent of lesson position. CP-02 generates in
     // lesson order, so a one-item batch may omit the selected queue item.
     const lessonItems = await this.deps.content.listPublishedLessonItems(candidate.lessonPublicId);

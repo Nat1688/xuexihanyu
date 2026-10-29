@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { previewApi } from './client';
+import { ui } from '../ui-vi';
 
 /** No optimistic entry or persistent availability cache. Errors fail closed. */
 export function PreviewEntry({ onOpen }: { onOpen: () => void }) {
@@ -20,7 +21,7 @@ export function PreviewEntry({ onOpen }: { onOpen: () => void }) {
   }, []);
   return available ? (
     <button type="button" className="clp-button" onClick={onOpen}>
-      Lesson 01 · PREVIEW
+      {ui.preview.title}
     </button>
   ) : null;
 }

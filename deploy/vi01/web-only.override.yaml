@@ -1,0 +1,4 @@
+# Apply LAST to the existing, unchanged Local Trial Compose configuration.
+services:
+  web:
+    image: ${VI01_WEB_IMAGE:?Explicit reviewed Web image required}

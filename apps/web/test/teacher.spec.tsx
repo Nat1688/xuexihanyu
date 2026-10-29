@@ -58,7 +58,7 @@ describe('TW-01 component rendering and navigation policy', () => {
         {() => 'private'}
       </ResourceView>,
     );
-    expect(error).toContain('permission');
+    expect(error).toContain('không có quyền');
     expect(error).not.toContain('sensitive raw text');
     expect(error).not.toContain('private');
     expect(
@@ -71,10 +71,10 @@ describe('TW-01 component rendering and navigation policy', () => {
   });
   it('renders useful class and roster empty states', () => {
     expect(renderToStaticMarkup(<ClassCards classes={[]} onOpen={() => {}} />)).toContain(
-      'Create a class',
+      'Tạo lớp',
     );
     expect(renderToStaticMarkup(<Roster students={[]} onOpen={() => {}} />)).toContain(
-      'No students enrolled',
+      'Chưa có học viên ghi danh',
     );
   });
   it('escapes student content, hides IDs and does not invent completion or accuracy', () => {
@@ -84,9 +84,9 @@ describe('TW-01 component rendering and navigation policy', () => {
     expect(html).not.toContain('student-public');
     expect(html).not.toContain('class-public');
     expect(html).not.toContain('0%');
-    expect(html).toContain('not a grade');
-    expect(html).toContain('does not mean the student has failed or completed');
-    expect(html).toContain('rule/version are unavailable');
+    expect(html).toContain('không phải điểm số');
+    expect(html).toContain('không có nghĩa học viên không đạt hoặc đã hoàn thành');
+    expect(html).toContain('không phải điểm đánh giá của giáo viên');
   });
   it.each([400, 401, 403, 404, 409, 422, 500])('uses safe messages for HTTP %s', (status) => {
     expect(teacherError(new ApiError(status, 'ERROR', 'private payload'))).not.toContain(
@@ -95,7 +95,7 @@ describe('TW-01 component rendering and navigation policy', () => {
   });
   it('recognizes the actual identity CSRF error code before the generic 403', () => {
     expect(teacherError(new ApiError(403, 'AUTH_CSRF_INVALID', 'ignored'))).toContain(
-      'Security check failed',
+      'Kiểm tra bảo mật không thành công',
     );
   });
 });

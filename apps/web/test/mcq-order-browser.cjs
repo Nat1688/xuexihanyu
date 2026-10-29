@@ -98,19 +98,19 @@ async function main() {
     await checkOrder();
     await radios.first().focus();
     assert.equal(await page.locator('input:checked').count(), 0);
-    assert.equal(await page.getByRole('button', { name: 'Submit answer' }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Nộp đáp án' }).isDisabled(), true);
     await page.reload();
     await radios.first().waitFor();
     await checkOrder();
     assert.equal(await page.locator('input:checked').count(), 0);
     await page.getByRole('radio', { name: '你好', exact: true }).focus();
     await page.keyboard.press('Space');
-    await page.getByRole('button', { name: 'Submit answer' }).click();
+    await page.getByRole('button', { name: 'Nộp đáp án' }).click();
     await page.getByRole('alert').waitFor();
     await checkOrder(); // state/error rerender must not shuffle
     assert.equal(await page.getByRole('radio', { name: '你好', exact: true }).isChecked(), true);
-    await page.getByRole('button', { name: 'Submit answer' }).click();
-    await page.getByRole('heading', { name: 'Result', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Nộp đáp án' }).click();
+    await page.getByRole('heading', { name: 'Kết quả', exact: true }).waitFor();
     assert.equal(answers.length, 2);
     assert.equal(answers[0].answer, '你好');
     assert.equal(answers[1].answer, '你好');

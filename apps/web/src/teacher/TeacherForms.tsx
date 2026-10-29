@@ -59,11 +59,11 @@ export function CreateClassForm({
     void mutation.run(() => teacherApi.createClass(title.trim(), term.trim() || null), onSaved);
   }
   return (
-    <form onSubmit={submit} className="tw-panel" aria-label="Create class">
-      <h2>A new place to learn</h2>
+    <form onSubmit={submit} className="tw-panel" aria-label="Tạo lớp">
+      <h2>Tạo không gian học tập mới</h2>
       <fieldset disabled={mutation.busy} className="tw-fieldset">
         <div className="clp-field">
-          <label htmlFor="class-title">Class name</label>
+          <label htmlFor="class-title">Tên lớp</label>
           <input
             className="clp-input"
             id="class-title"
@@ -71,32 +71,32 @@ export function CreateClassForm({
             maxLength={120}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. Mandarin foundations"
+            placeholder="Ví dụ: Tiếng Trung cơ bản"
           />
         </div>
         <div className="clp-field">
-          <label htmlFor="class-term">Term (optional)</label>
+          <label htmlFor="class-term">Học kỳ (không bắt buộc)</label>
           <input
             className="clp-input"
             id="class-term"
             maxLength={40}
             value={term}
             onChange={(event) => setTerm(event.target.value)}
-            placeholder="e.g. Autumn 2026"
+            placeholder="Ví dụ: Học kỳ thu 2026"
           />
         </div>
         {mutation.error ? (
           <p className="clp-error" role="alert">
-            {mutation.error} If a class was created, it will appear after refreshing the dashboard.
-            Do not resubmit until checked.
+            {mutation.error} Nếu lớp đã được tạo, lớp sẽ xuất hiện khi tải lại trang tổng quan. Hãy
+            kiểm tra trước khi gửi lại.
           </p>
         ) : null}
         <div className="clp-actions">
           <button className="clp-button" disabled={!title.trim() || mutation.busy}>
-            {mutation.busy ? 'Creating…' : 'Create class'}
+            {mutation.busy ? 'Đang tạo…' : 'Tạo lớp'}
           </button>
           <button className="clp-button clp-button--secondary" type="button" onClick={onCancel}>
-            Cancel
+            Hủy
           </button>
         </div>
       </fieldset>
@@ -119,23 +119,23 @@ export function AssignmentForm({
   const [courseId, setCourseId] = useState('');
   return (
     <section className="tw-panel">
-      <h2>Assign a lesson</h2>
+      <h2>Giao bài học</h2>
       <p className="clp-muted">
-        Choose published content for this student. No class-wide bulk assignment.
+        Chọn nội dung đã xuất bản cho học viên này. Chưa hỗ trợ giao đồng loạt cho cả lớp.
       </p>
       <ResourceView state={courses.state} retry={courses.refresh}>
         {(rows) => (
           <>
             {rows.length ? (
               <div className="clp-field">
-                <label htmlFor="assign-course">Course</label>
+                <label htmlFor="assign-course">Khóa học</label>
                 <select
                   className="clp-input"
                   id="assign-course"
                   value={courseId}
                   onChange={(event) => setCourseId(event.target.value)}
                 >
-                  <option value="">Choose a course</option>
+                  <option value="">Chọn khóa học</option>
                   {rows.map((row) => (
                     <option key={row.publicId} value={row.publicId}>
                       {row.title}
@@ -144,7 +144,7 @@ export function AssignmentForm({
                 </select>
               </div>
             ) : (
-              <p>No readable courses available.</p>
+              <p>Chưa có khóa học có thể truy cập.</p>
             )}
             {courseId ? (
               <UnitPicker
@@ -182,14 +182,14 @@ function UnitPicker({
         <>
           {rows.length ? (
             <div className="clp-field">
-              <label htmlFor="assign-unit">Unit</label>
+              <label htmlFor="assign-unit">Chương</label>
               <select
                 className="clp-input"
                 id="assign-unit"
                 value={unitId}
                 onChange={(event) => setUnitId(event.target.value)}
               >
-                <option value="">Choose a unit</option>
+                <option value="">Chọn chương</option>
                 {rows.map((row) => (
                   <option key={row.publicId} value={row.publicId}>
                     {row.title}
@@ -198,7 +198,7 @@ function UnitPicker({
               </select>
             </div>
           ) : (
-            <p>No readable units in this course.</p>
+            <p>Chưa có chương có thể truy cập trong khóa học này.</p>
           )}
           {unitId ? <LessonPicker key={unitId} unitId={unitId} {...props} /> : null}
         </>
@@ -229,10 +229,10 @@ function LessonPicker({
     <ResourceView state={lessons.state} retry={lessons.refresh}>
       {(rows) => {
         const published = rows.filter((row) => row.visibility === 'PUBLISHED');
-        if (!published.length) return <p>No published lessons in this unit.</p>;
+        if (!published.length) return <p>Chưa có bài học đã xuất bản trong chương này.</p>;
         return (
           <form
-            aria-label="Assign lesson"
+            aria-label="Giao bài học"
             onSubmit={(event) => {
               event.preventDefault();
               if (!published.some((row) => row.publicId === lessonId)) return;
@@ -247,7 +247,7 @@ function LessonPicker({
           >
             <fieldset disabled={mutation.busy} className="tw-fieldset">
               <div className="clp-field">
-                <label htmlFor="assign-lesson">Published lesson</label>
+                <label htmlFor="assign-lesson">Bài học đã xuất bản</label>
                 <select
                   id="assign-lesson"
                   className="clp-input"
@@ -255,7 +255,7 @@ function LessonPicker({
                   value={lessonId}
                   onChange={(event) => setLessonId(event.target.value)}
                 >
-                  <option value="">Choose a lesson</option>
+                  <option value="">Chọn bài học</option>
                   {published.map((row) => (
                     <option key={row.publicId} value={row.publicId}>
                       {row.title}
@@ -264,7 +264,9 @@ function LessonPicker({
                 </select>
               </div>
               <div className="clp-field">
-                <label htmlFor="assign-due">Due date (optional, your local timezone)</label>
+                <label htmlFor="assign-due">
+                  Hạn nộp (không bắt buộc, theo múi giờ địa phương)
+                </label>
                 <input
                   id="assign-due"
                   className="clp-input"
@@ -279,7 +281,7 @@ function LessonPicker({
                 </p>
               ) : null}
               <button className="clp-button" disabled={!lessonId || mutation.busy}>
-                {mutation.busy ? 'Assigning…' : 'Assign lesson'}
+                {mutation.busy ? 'Đang giao bài…' : 'Giao bài học'}
               </button>
             </fieldset>
           </form>

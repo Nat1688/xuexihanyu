@@ -15,7 +15,7 @@ describe('LC-03B reader initial state and client contract', () => {
     expect(html).toContain('chưa lưu tiến độ');
     expect(html).toContain('instruction-language');
     expect(html).not.toContain('acceptedForms');
-    expect(html).toContain('Back to Today');
+    expect(html).toContain('Về Hôm nay');
   });
   it('pins revision and language on POST without mode or progress identifiers', async () => {
     const calls: { url: string; options: RequestInit }[] = [];

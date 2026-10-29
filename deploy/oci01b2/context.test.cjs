@@ -118,7 +118,7 @@ test('all current repository build-context files pass unchanged fail-closed audi
     .filter((f) => included(f));
   assert.ok(files.includes('apps/api/src/main.ts'));
   assert.ok(files.includes('apps/web/src/App.tsx'));
-  assert.equal(files.filter((f) => /migration\.sql$/.test(f)).length, 9);
+  assert.equal(files.filter((f) => /migration\.sql$/.test(f)).length, 10); // CL-01 additive migration
   assert.equal(auditFiles(files), files.length);
 });
 test('API and frontend default build paths require successful context-audit stage', () => {
@@ -126,7 +126,7 @@ test('API and frontend default build paths require successful context-audit stag
     ['api.Dockerfile', 'dependencies'],
     ['web.Dockerfile', 'build'],
   ]) {
-    const text = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    const text = fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
     assert.match(
       text,
       /FROM base AS context-audit\s+COPY \. \/context\s+RUN node \/context\/deploy\/oci01b2\/audit-context.cjs \/context && touch \/context-audit.ok/,

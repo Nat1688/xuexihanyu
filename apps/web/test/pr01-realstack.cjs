@@ -257,9 +257,9 @@ async function main() {
       );
     async function login(page, loginName) {
       await page.goto(spaOrigin);
-      await page.getByLabel('Login', { exact: true }).fill(loginName);
-      await page.getByLabel('Password', { exact: true }).fill(demoPassword);
-      await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+      await page.getByLabel('Tên đăng nhập', { exact: true }).fill(loginName);
+      await page.getByLabel('Mật khẩu', { exact: true }).fill(demoPassword);
+      await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     }
     async function shot(page, name) {
       assert.equal(
@@ -290,7 +290,7 @@ async function main() {
     });
     stage = 'teacher login and dashboard';
     await login(teacher, teacherUser.login);
-    await visible(teacher.getByRole('heading', { name: 'Your teaching space' }));
+    await visible(teacher.getByRole('heading', { name: 'Không gian giảng dạy' }));
     const initial = await api(teacher, '/teacher/classes');
     assert.equal(initial.status, 200);
     assert.equal(initial.data.classes.length, 1);
@@ -314,15 +314,17 @@ async function main() {
       { timeout: 20000 },
     );
     await acquired;
-    await teacher.getByRole('button', { name: '+ New class' }).click();
-    await teacher.getByLabel('Class name').fill('PR-01 real pilot class');
+    await teacher.getByRole('button', { name: '+ Tạo lớp' }).click();
+    await teacher.getByLabel('Tên lớp').fill('PR-01 real pilot class');
     const createResponse = teacher.waitForResponse(
       (r) => r.url() === apiOrigin + '/teacher/classes' && r.request().method() === 'POST',
     );
-    await teacher.getByRole('button', { name: 'Create class', exact: true }).click();
-    assert.ok(await teacher.getByRole('button', { name: 'Close form', exact: true }).isDisabled());
-    assert.ok(await teacher.getByRole('button', { name: 'Cancel', exact: true }).isDisabled());
-    assert.ok(await teacher.getByRole('button', { name: 'Sign out', exact: true }).isDisabled());
+    await teacher.getByRole('button', { name: 'Tạo lớp', exact: true }).click();
+    assert.ok(
+      await teacher.getByRole('button', { name: 'Đóng biểu mẫu', exact: true }).isDisabled(),
+    );
+    assert.ok(await teacher.getByRole('button', { name: 'Hủy', exact: true }).isDisabled());
+    assert.ok(await teacher.getByRole('button', { name: 'Đăng xuất', exact: true }).isDisabled());
     releaseLock();
     await blocking;
     releaseLock = null;
@@ -336,7 +338,7 @@ async function main() {
     pass(stage);
     stage = 'empty class and real enrollment setup';
     await teacher.getByRole('button', { name: /PR-01 real pilot class/ }).click();
-    await visible(teacher.getByText('No students enrolled yet'));
+    await visible(teacher.getByText('Chưa có học viên ghi danh'));
     await shot(teacher, '02-empty-class');
     assert.equal(
       (
@@ -346,9 +348,9 @@ async function main() {
       ).status,
       201,
     );
-    await teacher.getByRole('button', { name: 'Refresh roster' }).click();
+    await teacher.getByRole('button', { name: 'Tải lại danh sách học viên' }).click();
     const studentButton = teacher.getByRole('button', {
-      name: `View progress for ${demoStudent.displayName || demoStudent.login}`,
+      name: `Xem tiến độ của ${demoStudent.displayName || demoStudent.login}`,
     });
     await visible(studentButton);
     await shot(teacher, '03-loaded-roster');
@@ -407,7 +409,7 @@ async function main() {
     const studentContext = await browser.newContext({ viewport: { width: 1280, height: 960 } });
     const student = await studentContext.newPage();
     await login(student, demoStudent.login);
-    await visible(student.getByRole('heading', { name: 'Today', exact: true }));
+    await visible(student.getByRole('heading', { name: 'Hôm nay', exact: true }));
     const initialToday = (await api(student, '/student/today')).data;
     assert.equal(initialToday.completedToday, 0);
     const selectedLessonId = initialToday.entries[0].lessonId;
@@ -426,11 +428,11 @@ async function main() {
     }
     assert.ok(lesson && selectedUnit);
     stage = 'assign published queue lesson via UI';
-    await teacher.getByLabel('Course', { exact: true }).selectOption(course.publicId);
-    await teacher.getByLabel('Unit', { exact: true }).selectOption(selectedUnit.publicId);
-    await teacher.getByLabel('Published lesson').selectOption(lesson.publicId);
-    await teacher.getByRole('button', { name: 'Assign lesson', exact: true }).click();
-    await visible(teacher.getByText('Lesson assigned.', { exact: true }));
+    await teacher.getByLabel('Khóa học', { exact: true }).selectOption(course.publicId);
+    await teacher.getByLabel('Chương', { exact: true }).selectOption(selectedUnit.publicId);
+    await teacher.getByLabel('Bài học đã xuất bản').selectOption(lesson.publicId);
+    await teacher.getByRole('button', { name: 'Giao bài học', exact: true }).click();
+    await visible(teacher.getByText('Đã giao bài học.', { exact: true }));
     await visible(teacher.getByText(lesson.title, { exact: true }));
     await shot(teacher, '04-assignment');
     assert.equal(
@@ -445,11 +447,11 @@ async function main() {
     pass(stage);
     stage = 'student real login and published queue contract';
     await student.reload();
-    await visible(student.getByRole('heading', { name: 'Today', exact: true }));
+    await visible(student.getByRole('heading', { name: 'Hôm nay', exact: true }));
     const today = (await api(student, '/student/today')).data;
     assert.ok(today.entries.some((row) => row.lessonId === lesson.publicId));
     assert.ok(!JSON.stringify(today).includes(demoStudent.id));
-    await visible(student.getByRole('button', { name: 'Continue', exact: true }));
+    await visible(student.getByRole('button', { name: 'Tiếp tục', exact: true }));
     await shot(student, '05-student-today');
     pass(stage, {
       gap: 'Student Today is a published/due queue, not an assignment inbox or completion contract.',
@@ -459,7 +461,7 @@ async function main() {
         (r) => r.url().includes('/student/exercises/next') && r.request().method() === 'POST',
       );
       await student
-        .getByRole('button', { name: dropResponse ? 'Next exercise' : 'Continue', exact: true })
+        .getByRole('button', { name: dropResponse ? 'Bài tập tiếp theo' : 'Tiếp tục', exact: true })
         .click();
       const exercise = await (await startResponse).json();
       assert.deepEqual(
@@ -481,10 +483,10 @@ async function main() {
       const responseText = JSON.stringify(exercise);
       for (const hidden of [session.id, session.actorId, session.learningItemId, session.lessonId])
         assert.ok(!responseText.includes(hidden));
-      await visible(student.getByRole('button', { name: 'Submit answer', exact: true }));
+      await visible(student.getByRole('button', { name: 'Nộp đáp án', exact: true }));
       if (!dropResponse) await shot(student, '06-exercise-before-answer');
       if (exercise.format === 'MULTIPLE_CHOICE') await student.getByRole('radio').first().check();
-      else await student.getByLabel('Your answer', { exact: true }).fill('你好');
+      else await student.getByLabel('Câu trả lời của bạn', { exact: true }).fill('你好');
       let dropped = false;
       if (dropResponse)
         await student.route('**/student/exercises/*/answers', async (route) => {
@@ -492,7 +494,7 @@ async function main() {
           dropped = true;
           await route.abort('failed');
         });
-      await student.getByRole('button', { name: 'Submit answer', exact: true }).click();
+      await student.getByRole('button', { name: 'Nộp đáp án', exact: true }).click();
       if (dropResponse) {
         await visible(student.getByRole('alert'));
         assert.ok(dropped);
@@ -503,7 +505,7 @@ async function main() {
         await student.reload();
         assert.equal((await recovery).status(), 200);
       }
-      await visible(student.getByRole('heading', { name: 'Result', exact: true }));
+      await visible(student.getByRole('heading', { name: 'Kết quả', exact: true }));
       const submissions = await prisma.answerSubmission.findMany({
         where: { exerciseSessionId: session.id },
       });
@@ -564,7 +566,7 @@ async function main() {
     await exercise(true);
     pass(stage);
     stage = 'teacher evidence updates from real student activity';
-    await teacher.getByRole('button', { name: 'Refresh record', exact: true }).click();
+    await teacher.getByRole('button', { name: 'Tải lại hồ sơ', exact: true }).click();
     await visible(
       teacher.getByRole('heading', {
         name: demoStudent.displayName || demoStudent.login,
@@ -589,16 +591,16 @@ async function main() {
     );
     const other = await browser.newPage();
     await login(other, 'teacher.one@example.invalid');
-    await visible(other.getByRole('heading', { name: 'Your teaching space' }));
+    await visible(other.getByRole('heading', { name: 'Không gian giảng dạy' }));
     assert.equal((await api(other, `/teacher/classes/${created.classId}/roster`)).status, 404);
     assert.equal(await prisma.teachingClass.count({ where: { title: 'Must not be created' } }), 0);
     pass(stage);
     stage = 'real offline error and retry';
     await teacherContext.setOffline(true);
-    await teacher.getByRole('button', { name: 'Refresh record', exact: true }).click();
+    await teacher.getByRole('button', { name: 'Tải lại hồ sơ', exact: true }).click();
     await visible(teacher.getByRole('alert'));
     await teacherContext.setOffline(false);
-    await teacher.getByRole('button', { name: 'Retry', exact: true }).click();
+    await teacher.getByRole('button', { name: 'Thử lại', exact: true }).click();
     await visible(
       teacher.getByRole('heading', {
         name: demoStudent.displayName || demoStudent.login,
@@ -611,8 +613,8 @@ async function main() {
       where: { userId: teacherUser.id },
       data: { expiresAt: new Date(0) },
     });
-    await teacher.getByRole('button', { name: 'Refresh record', exact: true }).click();
-    await visible(teacher.getByRole('heading', { name: 'Sign in', exact: true }));
+    await teacher.getByRole('button', { name: 'Tải lại hồ sơ', exact: true }).click();
+    await visible(teacher.getByRole('heading', { name: 'Đăng nhập', exact: true }));
     pass(stage);
     const counts = {
       users: await prisma.user.count(),

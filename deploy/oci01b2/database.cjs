@@ -110,6 +110,7 @@ const TABLES = [
   'exercise_sessions',
   'answer_submissions',
   'teaching_classes',
+  'class_invitations',
   'class_enrollments',
   'lesson_assignments',
   'teacher_notes',
@@ -128,7 +129,7 @@ function main(mode, file) {
       'local-trial',
       'SELECT json_agg(json_build_array(id,checksum,started_at,finished_at,rolled_back_at) ORDER BY id) FROM public._prisma_migrations',
     );
-    if (Number(rows._prisma_migrations) !== 9) throw Error('UNEXPECTED_MIGRATIONS');
+    if (Number(rows._prisma_migrations) !== 10) throw Error('UNEXPECTED_MIGRATIONS');
     console.log(
       JSON.stringify(
         {
@@ -155,7 +156,14 @@ function main(mode, file) {
     if (
       payload.baseline !== '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194' ||
       payload.source !== 'clp_local_trial' ||
+      payload.schemaVersion !== 10 ||
       !payload.counts ||
+      Object.keys(payload.counts).length !== TABLES.length ||
+      TABLES.some(
+        (table) =>
+          !Number.isSafeInteger(Number(payload.counts[table])) || Number(payload.counts[table]) < 0,
+      ) ||
+      Number(payload.counts._prisma_migrations) !== 10 ||
       typeof payload.dump !== 'string'
     )
       throw Error('UNSUPPORTED_BACKUP');
@@ -187,7 +195,7 @@ function main(mode, file) {
       throw Error('QUIESCE_TRIAL_WRITERS_FIRST');
     identify('local-trial');
     const rows = counts('local-trial');
-    if (Number(rows._prisma_migrations) !== 9) throw Error('UNEXPECTED_MIGRATIONS');
+    if (Number(rows._prisma_migrations) !== 10) throw Error('UNEXPECTED_MIGRATIONS');
     const incomplete = sql(
       'local-trial',
       'SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL',
@@ -206,6 +214,7 @@ function main(mode, file) {
     payload = {
       baseline: '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194',
       source: 'clp_local_trial',
+      schemaVersion: 10,
       created: new Date().toISOString(),
       counts: rows,
       dump: dump.toString('base64'),
@@ -240,7 +249,7 @@ function main(mode, file) {
     if (TABLES.some((t) => String(actual[t]) !== String(payload.counts[t])))
       throw Error('RESTORE_COUNTS_DIFFER');
     console.log(
-      'RESTORE_CHECK_PASS: 18 table counts match; 9 migration rows retained. Target left intact.',
+      'RESTORE_CHECK_PASS: 19 table counts match; 10 migration rows retained. Target left intact.',
     );
   }
 }

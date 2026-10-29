@@ -1,3 +1,4 @@
+import { learningState, displayNumber, displayPercent } from '../ui-vi';
 import type { ReactNode } from 'react';
 import type { StudentDetail, TeacherClass, RosterStudent } from '../api/teacher';
 import { displayDate, teacherError } from './model';
@@ -15,7 +16,7 @@ export function ResourceView<T>({
   if (state.status === 'loading')
     return (
       <div className="tw-empty" role="status">
-        Loading your workspace…
+        Đang tải không gian làm việc…
       </div>
     );
   if (state.status === 'error')
@@ -23,7 +24,7 @@ export function ResourceView<T>({
       <div className="clp-error" role="alert">
         <p>{teacherError(state.error)}</p>
         <button className="clp-button clp-button--secondary" onClick={retry}>
-          Retry
+          Thử lại
         </button>
       </div>
     );
@@ -40,8 +41,8 @@ export function ClassCards({
   if (!classes.length)
     return (
       <div className="tw-empty">
-        <h2>A fresh start for your classroom</h2>
-        <p>Create a class to begin. Only classes you own appear here.</p>
+        <h2>Bắt đầu với lớp học mới</h2>
+        <p>Tạo lớp để bắt đầu. Chỉ các lớp bạn quản lý mới xuất hiện ở đây.</p>
       </div>
     );
   return (
@@ -51,10 +52,11 @@ export function ClassCards({
           <span className="tw-class-mark" aria-hidden="true">
             {String(index + 1).padStart(2, '0')}
           </span>
-          <span className="tw-tag">{klass.term || 'No term set'}</span>
+          <span className="tw-tag">{klass.term || 'Chưa đặt học kỳ'}</span>
           <span className="tw-class-title">{klass.title}</span>
           <span className="clp-muted">
-            {klass.enrolled} enrolled · View class <span aria-hidden="true">↗</span>
+            {displayNumber(klass.enrolled)} lượt ghi danh · Xem lớp{' '}
+            <span aria-hidden="true">↗</span>
           </span>
         </button>
       ))}
@@ -72,22 +74,19 @@ export function Roster({
   if (!students.length)
     return (
       <div className="tw-empty">
-        <h3>No students enrolled yet</h3>
-        <p>
-          Enrollment currently requires an existing account’s public identifier through the Teacher
-          API. Account search is not available.
-        </p>
+        <h3>Chưa có học viên ghi danh</h3>
+        <p>Lớp chưa có học viên. Hãy chia sẻ mã tham gia hoặc thêm tài khoản học viên có sẵn.</p>
       </div>
     );
   return (
     <div className="tw-table-wrap">
       <table className="tw-table">
-        <caption className="tw-sr-only">Class roster</caption>
+        <caption className="tw-sr-only">Danh sách học viên</caption>
         <thead>
           <tr>
-            <th>Student</th>
-            <th>Enrolled</th>
-            <th>Learning record</th>
+            <th>Học viên</th>
+            <th>Ngày ghi danh</th>
+            <th>Hồ sơ học tập</th>
           </tr>
         </thead>
         <tbody>
@@ -103,8 +102,8 @@ export function Roster({
                   className="clp-button clp-button--secondary"
                   onClick={() => onOpen(student)}
                 >
-                  View progress
-                  <span className="tw-sr-only"> for {student.displayName || student.login}</span>
+                  Xem tiến độ
+                  <span className="tw-sr-only"> của {student.displayName || student.login}</span>
                 </button>
               </td>
             </tr>
@@ -121,48 +120,46 @@ export function StudentRecord({ detail }: { detail: StudentDetail }) {
     <>
       <div className="tw-section-heading">
         <div>
-          <p className="tw-eyebrow">Learning record</p>
+          <p className="tw-eyebrow">Hồ sơ học tập</p>
           <h1>{detail.displayName || detail.login}</h1>
         </div>
-        <span className="tw-tag">Last {evidence.window.days} days</span>
+        <span className="tw-tag">{displayNumber(evidence.window.days)} ngày gần nhất</span>
       </div>
       <p className="clp-muted">
-        Evidence from lessons assigned in this class. Informational only — not a grade.
+        Dữ liệu từ các bài học được giao trong lớp này. Chỉ để tham khảo — không phải điểm số.
       </p>
       <div className="tw-stats">
         <div>
-          <span>Attempts</span>
-          <strong>{evidence.attempts}</strong>
+          <span>Lượt làm bài</span>
+          <strong>{displayNumber(evidence.attempts)}</strong>
         </div>
         <div>
-          <span>Correct answers</span>
-          <strong>{evidence.correct}</strong>
+          <span>Câu trả lời đúng</span>
+          <strong>{displayNumber(evidence.correct)}</strong>
         </div>
         <div>
-          <span>Accuracy</span>
-          <strong>
-            {evidence.accuracy === null ? '—' : `${Math.round(evidence.accuracy * 100)}%`}
-          </strong>
+          <span>Tỷ lệ chính xác</span>
+          <strong>{evidence.accuracy === null ? '—' : displayPercent(evidence.accuracy)}</strong>
         </div>
         <div>
-          <span>Assigned lessons</span>
-          <strong>{evidence.assignedLessons}</strong>
+          <span>Bài học đã giao</span>
+          <strong>{displayNumber(evidence.assignedLessons)}</strong>
         </div>
       </div>
       {!evidence.totalEvents ? (
         <p className="tw-notice">
-          No learning evidence in this window. This does not mean the student has failed or
-          completed the assignments.
+          Chưa có dữ liệu học tập trong khoảng thời gian này. Điều này không có nghĩa học viên không
+          đạt hoặc đã hoàn thành bài được giao.
         </p>
       ) : null}
       <p className="tw-fine">
-        Window: {displayDate(evidence.window.from)} – {displayDate(evidence.window.to)} (end
-        exclusive). Dates use your browser’s local timezone.
+        Khoảng thời gian: {displayDate(evidence.window.from)} – {displayDate(evidence.window.to)}{' '}
+        (không bao gồm thời điểm kết thúc). Ngày giờ theo múi giờ địa phương của trình duyệt.
       </p>
       <section className="tw-panel">
-        <h2>Assigned lessons</h2>
+        <h2>Bài học đã giao</h2>
         {!detail.assignments.length ? (
-          <p className="clp-muted">No lessons assigned yet.</p>
+          <p className="clp-muted">Chưa có bài học được giao.</p>
         ) : (
           <ul className="tw-rows">
             {detail.assignments.map((assignment) => (
@@ -174,39 +171,40 @@ export function StudentRecord({ detail }: { detail: StudentDetail }) {
           </ul>
         )}
         <p className="tw-fine">
-          Due dates are shown as scheduled. The API does not provide assignment completion status.
+          Hạn nộp hiển thị theo lịch đã đặt. Chưa có trạng thái hoàn thành bài được giao.
         </p>
       </section>
       <div className="tw-columns">
         <section className="tw-panel">
-          <h2>Practice signals</h2>
+          <h2>Thông tin luyện tập</h2>
           <p className="tw-fine">
-            Up to 10 items returned by the API. Item labels and mastery rule/version are
-            unavailable; no rule version is inferred.
+            Hiển thị tối đa 10 mục luyện tập. Mục chưa có tên được đánh số để tham khảo; đây không
+            phải điểm đánh giá của giáo viên.
           </p>
           {!detail.progress.weakItems.length ? (
-            <p className="clp-muted">No practice signals available.</p>
+            <p className="clp-muted">Chưa có thông tin luyện tập.</p>
           ) : (
             <ul className="tw-rows">
               {detail.progress.weakItems.map((item, index) => (
                 <li key={item.itemId}>
                   <div>
-                    <strong>Item {index + 1}</strong>
+                    <strong>Mục {index + 1}</strong>
                     <small>
-                      {item.correct} correct · {item.incorrect} incorrect in window
+                      {displayNumber(item.correct)} đúng · {displayNumber(item.incorrect)} sai trong
+                      khoảng thời gian
                     </small>
                   </div>
-                  <span className="tw-tag">{item.state.toLowerCase()}</span>
+                  <span className="tw-tag">{learningState(item.state)}</span>
                 </li>
               ))}
             </ul>
           )}
         </section>
         <section className="tw-panel">
-          <h2>Recent activity</h2>
-          <p className="tw-fine">Up to 20 events in this evidence window.</p>
+          <h2>Hoạt động gần đây</h2>
+          <p className="tw-fine">Tối đa 20 sự kiện trong khoảng thời gian này.</p>
           {!detail.recentEvidence.length ? (
-            <p className="clp-muted">No recent activity.</p>
+            <p className="clp-muted">Chưa có hoạt động gần đây.</p>
           ) : (
             <ul className="tw-rows">
               {detail.recentEvidence.map((event) => (
@@ -215,16 +213,12 @@ export function StudentRecord({ detail }: { detail: StudentDetail }) {
                     <strong>
                       {detail.assignments.find(
                         (assignment) => assignment.lessonId === event.lessonId,
-                      )?.lessonTitle || 'Assigned lesson activity'}
+                      )?.lessonTitle || 'Hoạt động trong bài đã giao'}
                     </strong>
                     <small>{displayDate(event.occurredAt)}</small>
                   </div>
                   <span className="tw-tag">
-                    {event.accepted === null
-                      ? 'Activity'
-                      : event.accepted
-                        ? 'Correct'
-                        : 'Incorrect'}
+                    {event.accepted === null ? 'Hoạt động' : event.accepted ? 'Đúng' : 'Sai'}
                   </span>
                 </li>
               ))}

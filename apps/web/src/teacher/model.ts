@@ -1,4 +1,5 @@
 import { ApiError, type Principal } from '../api/client';
+import { UI_LOCALE } from '../ui-vi';
 
 // Navigation hints only; the server independently enforces permissions.
 export const canTeach = (principal: Principal) =>
@@ -7,26 +8,27 @@ export const canStudy = (principal: Principal) => principal.roles.includes('STUD
 
 export function teacherError(error: unknown): string {
   if (!(error instanceof ApiError))
-    return 'Connection interrupted. Refresh to check the latest data before trying again.';
-  if (error.status === 401) return 'Your session has expired. Please sign in again.';
+    return 'Kết nối bị gián đoạn. Hãy tải lại để kiểm tra dữ liệu mới nhất trước khi thử lại.';
+  if (error.status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
   if (error.code === 'AUTH_CSRF_INVALID')
-    return 'Security check failed. Reload this page and try again.';
-  if (error.status === 403) return 'You do not have permission to view or change this data.';
-  if (error.status === 404) return 'This resource is unavailable or you no longer have access.';
+    return 'Kiểm tra bảo mật không thành công. Hãy tải lại trang rồi thử lại.';
+  if (error.status === 403) return 'Bạn không có quyền xem hoặc thay đổi dữ liệu này.';
+  if (error.status === 404)
+    return 'Nội dung này không còn khả dụng hoặc bạn không còn quyền truy cập.';
   if (error.status === 409)
-    return 'This record already exists or conflicts with another change. Refresh to check it.';
+    return 'Bản ghi đã tồn tại hoặc xung đột với thay đổi khác. Hãy tải lại để kiểm tra.';
   if (error.status === 422)
-    return 'This lesson or account is no longer eligible. Refresh and choose again.';
-  if (error.status === 400) return 'Check the form fields and try again.';
-  return 'Unable to complete this request. Please try again later.';
+    return 'Bài học hoặc tài khoản này không còn đủ điều kiện. Hãy tải lại và chọn lại.';
+  if (error.status === 400) return 'Hãy kiểm tra các trường thông tin rồi thử lại.';
+  return 'Không thể hoàn thành yêu cầu. Vui lòng thử lại sau.';
 }
 
 export function displayDate(value: string | null): string {
-  if (!value) return 'No due date';
+  if (!value) return 'Không có hạn';
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? 'Date unavailable'
-    : date.toLocaleString(undefined, {
+    ? 'Không có thông tin ngày'
+    : date.toLocaleString(UI_LOCALE, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',

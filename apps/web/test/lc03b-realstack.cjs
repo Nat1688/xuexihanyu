@@ -303,22 +303,22 @@ async function main() {
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(e.message));
   await page.goto(ui);
-  await page.getByLabel('Login', { exact: true }).fill(logins.STUDENT);
-  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByLabel('Tên đăng nhập', { exact: true }).fill(logins.STUDENT);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
   service.config = { ...originalConfig, LC03B_PREVIEW_ENABLED: 'false' };
   const unavailableDiscovery = page.waitForResponse((r) => r.url().endsWith('/availability'));
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
   assert.deepEqual(await (await unavailableDiscovery).json(), { available: false });
-  await page.getByText('Loading your plan…', { exact: true }).waitFor({ state: 'hidden' });
+  await page.getByText('Đang tải kế hoạch học…', { exact: true }).waitFor({ state: 'hidden' });
   assert.equal(
-    await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).count(),
+    await page.getByRole('button', { name: 'Bài 01 · BẢN XEM TRƯỚC', exact: true }).count(),
     0,
   );
   fs.mkdirSync(root, { recursive: true });
   await page.screenshot({ path: path.join(root, 'GATE-OFF.png'), fullPage: true });
   service.config = originalConfig;
   await page.reload();
-  await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).click();
+  await page.getByRole('button', { name: 'Bài 01 · BẢN XEM TRƯỚC', exact: true }).click();
   await page.getByText('Đang tải bài…', { exact: true }).waitFor();
   for (let i = 0; i < 100 && !enteredRead; i++) await page.waitForTimeout(10);
   assert.ok(enteredRead);
@@ -341,27 +341,27 @@ async function main() {
   const switchResponse = page.waitForResponse((r) =>
     r.url().includes('instructionLanguage=en&revision='),
   );
-  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').selectOption('en');
   assert.equal((await (await switchResponse).json()).revision, revision);
   await page
     .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
     .waitFor();
   assert.equal(await page.locator('input:checked').count(), 0);
-  assert.equal(await page.getByLabel('Your answer', { exact: true }).nth(0).inputValue(), '');
+  assert.equal(await page.getByLabel('Câu trả lời', { exact: true }).nth(0).inputValue(), '');
   await page.getByRole('radio', { name: '再见', exact: true }).check();
-  await page.getByRole('button', { name: 'Check P1', exact: true }).click();
+  await page.getByRole('button', { name: 'Kiểm tra P1', exact: true }).click();
   await page.getByText('Distinguish opening from goodbye; try 你好.', { exact: true }).waitFor();
   await page.screenshot({ path: path.join(root, 'EN-PREVIEW.png'), fullPage: true });
-  await page.getByLabel('Your answer', { exact: true }).nth(1).fill('nǐ hǎo');
+  await page.getByLabel('Câu trả lời', { exact: true }).nth(1).fill('nǐ hǎo');
   const oldCheck = page.waitForResponse((r) => r.url().endsWith('/practice-check'));
-  await page.getByRole('button', { name: 'Check P5', exact: true }).click();
+  await page.getByRole('button', { name: 'Kiểm tra P5', exact: true }).click();
   const oldFeedback = await (await oldCheck).json();
   assert.equal(oldFeedback.revision, revision);
   assert.equal(oldFeedback.correct, true); // latest fixture would reject this answer
-  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('vi');
+  await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').selectOption('vi');
   await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
-  await page.getByText('Revision: ' + revision, { exact: true }).waitFor();
-  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  await page.getByText('Phiên bản: ' + revision, { exact: true }).waitFor();
+  await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').selectOption('en');
   await page
     .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
     .waitFor();
@@ -371,7 +371,7 @@ async function main() {
       'Browser VI→EN→VI pinned old revision after latest changes; self-check uses old policy',
     status: 'PASS',
   });
-  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('vi');
+  await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').selectOption('vi');
   await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
   service.catalogs = [
     {
@@ -380,11 +380,14 @@ async function main() {
     },
     next,
   ];
-  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').selectOption('en');
   await page
-    .getByText('Preview or revision unavailable. Reload the lesson or return to Today.', {
-      exact: true,
-    })
+    .getByText(
+      'Bài xem trước hoặc phiên bản này không khả dụng. Hãy tải lại bài hoặc về Hôm nay.',
+      {
+        exact: true,
+      },
+    )
     .waitFor();
   assert.equal(
     await page
@@ -393,7 +396,7 @@ async function main() {
     0,
   );
   service.catalogs = originalCatalogs;
-  await page.getByRole('button', { name: 'Reload lesson', exact: true }).click();
+  await page.getByRole('button', { name: 'Tải lại bài', exact: true }).click();
   await page
     .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
     .waitFor();
@@ -418,14 +421,11 @@ async function main() {
     });
     return value;
   };
-  await page.getByRole('button', { name: 'Check P1', exact: true }).click();
+  await page.getByRole('button', { name: 'Kiểm tra P1', exact: true }).click();
   await entered;
-  assert.equal(
-    await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').isDisabled(),
-    true,
-  );
+  assert.equal(await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').isDisabled(), true);
   await page.getByRole('button', { name: 'Back to Today', exact: true }).click();
-  await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).click();
+  await page.getByRole('button', { name: 'Bài 01 · BẢN XEM TRƯỚC', exact: true }).click();
   await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
   service.check = originalCheck;
   releaseCheck();
@@ -437,22 +437,25 @@ async function main() {
   assert.equal(await page.locator('input:checked').count(), 0);
   // Existing server gate returns a real unavailable response, not a browser fixture.
   service.config = { ...originalConfig, LC03B_PREVIEW_ENABLED: 'false' };
-  await page.getByLabel('Instruction language / Ngôn ngữ hướng dẫn').selectOption('en');
+  await page.getByLabel('Ngôn ngữ hướng dẫn trong bài').selectOption('en');
   await page
-    .getByText('Preview or revision unavailable. Reload the lesson or return to Today.', {
-      exact: true,
-    })
+    .getByText(
+      'Bài xem trước hoặc phiên bản này không khả dụng. Hãy tải lại bài hoặc về Hôm nay.',
+      {
+        exact: true,
+      },
+    )
     .waitFor();
   service.config = originalConfig;
-  await page.getByRole('button', { name: 'Reload lesson', exact: true }).click();
+  await page.getByRole('button', { name: 'Tải lại bài', exact: true }).click();
   await page
     .getByRole('heading', { name: 'Greetings and self-introduction', exact: true })
     .waitFor();
   service.catalogs = [originalCatalogs[0], next];
   await page.reload();
-  await page.getByRole('button', { name: 'Lesson 01 · PREVIEW', exact: true }).click();
+  await page.getByRole('button', { name: 'Bài 01 · BẢN XEM TRƯỚC', exact: true }).click();
   await page.getByRole('heading', { name: 'Chào hỏi và tự giới thiệu', exact: true }).waitFor();
-  await page.getByText('Revision: ' + next.revision, { exact: true }).waitFor();
+  await page.getByText('Phiên bản: ' + next.revision, { exact: true }).waitFor();
   evidence.push({
     scenario: 'Browser reload deliberately loads current revision; unsaved answers cleared',
     status: 'PASS',

@@ -1,13 +1,14 @@
 /**
  * TODAY screen (CP-05).
  *
- * Read-only summary of the learner's own queue: completed today, remaining and
+ * Read-only summary of the learner's own queue: đã hoàn thành hôm nay, remaining and
  * the due/unseen entries the server derived for THIS authenticated learner.
  * The CONTINUE button asks the server for the next exercise — the client never
  * picks which item is presented.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { learningState, studentError, displayNumber } from '../ui-vi';
 import { ApiError, studentApi, type Principal, type TodayView } from '../api/client';
 
 export interface TodayScreenProps {
@@ -32,7 +33,7 @@ export function TodayScreen({ principal, onContinue, onLoggedOut }: TodayScreenP
         onLoggedOut();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Unable to load today.');
+      setError(studentError(err, 'Không thể tải kế hoạch hôm nay. Vui lòng thử lại.'));
     } finally {
       setLoading(false);
     }
@@ -65,15 +66,15 @@ export function TodayScreen({ principal, onContinue, onLoggedOut }: TodayScreenP
 
   return (
     <section aria-labelledby="today-heading" className="clp-card">
-      <h1 id="today-heading">Today</h1>
+      <h1 id="today-heading">Hôm nay</h1>
       <p className="clp-muted">
-        Signed in as <strong>{principal.displayName ?? principal.login}</strong>.{' '}
+        Đang đăng nhập với tài khoản <strong>{principal.displayName ?? principal.login}</strong>.{' '}
         <button type="button" className="clp-button clp-button--secondary" onClick={onLogout}>
-          Sign out
+          Đăng xuất
         </button>
       </p>
 
-      {loading ? <p role="status">Loading your plan…</p> : null}
+      {loading ? <p role="status">Đang tải kế hoạch học…</p> : null}
 
       {error ? (
         <p className="clp-error" role="alert">
@@ -83,7 +84,7 @@ export function TodayScreen({ principal, onContinue, onLoggedOut }: TodayScreenP
             className="clp-button clp-button--secondary"
             onClick={() => void load()}
           >
-            Retry
+            Thử lại
           </button>
         </p>
       ) : null}
@@ -91,30 +92,32 @@ export function TodayScreen({ principal, onContinue, onLoggedOut }: TodayScreenP
       {today ? (
         <>
           <p>
-            <span className="clp-badge">Daily goal {today.dailyGoal}</span>{' '}
-            <span className="clp-badge">{today.completedToday} completed today</span>{' '}
-            <span className="clp-badge">{today.remaining} queued</span>
+            <span className="clp-badge">Mục tiêu mỗi ngày {displayNumber(today.dailyGoal)}</span>{' '}
+            <span className="clp-badge">
+              {displayNumber(today.completedToday)} đã hoàn thành hôm nay
+            </span>{' '}
+            <span className="clp-badge">{displayNumber(today.remaining)} bài trong hàng đợi</span>
           </p>
 
           {today.empty ? (
             <div>
-              <h2>Nothing to practise right now</h2>
+              <h2>Hiện chưa có bài để luyện tập</h2>
               <p className="clp-muted">
-                There is no published or due material for you yet. Check back after your teacher
-                publishes a lesson.
+                Bạn chưa có nội dung đã xuất bản hoặc đến hạn ôn tập. Hãy quay lại sau khi giáo viên
+                xuất bản bài học.
               </p>
             </div>
           ) : (
-            <ul className="clp-list" aria-label="Today’s queue">
+            <ul className="clp-list" aria-label="Hàng đợi hôm nay">
               {today.entries.map((entry) => (
                 <li key={entry.itemId}>
                   <strong>{entry.lessonTitle}</strong>{' '}
                   {entry.due ? (
-                    <span className="clp-badge clp-badge--due">due</span>
+                    <span className="clp-badge clp-badge--due">đến hạn</span>
                   ) : entry.state ? (
-                    <span className="clp-badge">{entry.state.toLowerCase()}</span>
+                    <span className="clp-badge">{learningState(entry.state)}</span>
                   ) : (
-                    <span className="clp-badge">new</span>
+                    <span className="clp-badge">mới</span>
                   )}
                 </li>
               ))}
@@ -128,7 +131,7 @@ export function TodayScreen({ principal, onContinue, onLoggedOut }: TodayScreenP
               onClick={() => void onContinueClick()}
               disabled={today.empty}
             >
-              Continue
+              Tiếp tục
             </button>
           </div>
         </>
