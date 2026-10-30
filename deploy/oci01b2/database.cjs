@@ -94,7 +94,7 @@ function identify(profile) {
   if (r.database !== name || r.role !== name || r.major !== 17) throw Error('TARGET_MISMATCH');
   return r;
 }
-const TABLES = [
+const BASE_TABLES = [
   '_prisma_migrations',
   'users',
   'password_credentials',
@@ -115,8 +115,20 @@ const TABLES = [
   'lesson_assignments',
   'teacher_notes',
 ];
-function counts(profile) {
-  const pairs = TABLES.map((t) => `'${t}',(SELECT count(*) FROM public."${t}")`).join(',');
+function tablesFor(version) {
+  if (version === 10) return BASE_TABLES;
+  if (version === 11) return [...BASE_TABLES, 'course_applications'];
+  throw Error('UNSUPPORTED_SCHEMA_VERSION');
+}
+function expectedVersion() {
+  const value = process.env.CLP_EXPECTED_MIGRATIONS || '10';
+  if (!['10', '11'].includes(value)) throw Error('UNSUPPORTED_SCHEMA_VERSION');
+  return Number(value);
+}
+function counts(profile, version = expectedVersion()) {
+  const pairs = tablesFor(version)
+    .map((t) => `'${t}',(SELECT count(*) FROM public."${t}")`)
+    .join(',');
   return sql(profile, 'SELECT json_build_object(' + pairs + ')');
 }
 function main(mode, file) {
@@ -129,7 +141,7 @@ function main(mode, file) {
       'local-trial',
       'SELECT json_agg(json_build_array(id,checksum,started_at,finished_at,rolled_back_at) ORDER BY id) FROM public._prisma_migrations',
     );
-    if (Number(rows._prisma_migrations) !== 10) throw Error('UNEXPECTED_MIGRATIONS');
+    if (Number(rows._prisma_migrations) !== expectedVersion()) throw Error('UNEXPECTED_MIGRATIONS');
     console.log(
       JSON.stringify(
         {
@@ -156,14 +168,14 @@ function main(mode, file) {
     if (
       payload.baseline !== '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194' ||
       payload.source !== 'clp_local_trial' ||
-      payload.schemaVersion !== 10 ||
+      ![10, 11].includes(payload.schemaVersion) ||
       !payload.counts ||
-      Object.keys(payload.counts).length !== TABLES.length ||
-      TABLES.some(
+      Object.keys(payload.counts).length !== tablesFor(payload.schemaVersion).length ||
+      tablesFor(payload.schemaVersion).some(
         (table) =>
           !Number.isSafeInteger(Number(payload.counts[table])) || Number(payload.counts[table]) < 0,
       ) ||
-      Number(payload.counts._prisma_migrations) !== 10 ||
+      Number(payload.counts._prisma_migrations) !== payload.schemaVersion ||
       typeof payload.dump !== 'string'
     )
       throw Error('UNSUPPORTED_BACKUP');
@@ -195,7 +207,7 @@ function main(mode, file) {
       throw Error('QUIESCE_TRIAL_WRITERS_FIRST');
     identify('local-trial');
     const rows = counts('local-trial');
-    if (Number(rows._prisma_migrations) !== 10) throw Error('UNEXPECTED_MIGRATIONS');
+    if (Number(rows._prisma_migrations) !== expectedVersion()) throw Error('UNEXPECTED_MIGRATIONS');
     const incomplete = sql(
       'local-trial',
       'SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL',
@@ -214,7 +226,7 @@ function main(mode, file) {
     payload = {
       baseline: '8fc28d3a45539c2de5ddb14b94c3a4f9127e0194',
       source: 'clp_local_trial',
-      schemaVersion: 10,
+      schemaVersion: expectedVersion(),
       created: new Date().toISOString(),
       counts: rows,
       dump: dump.toString('base64'),
@@ -245,11 +257,13 @@ function main(mode, file) {
       ],
       dump,
     );
-    const actual = counts('restore');
-    if (TABLES.some((t) => String(actual[t]) !== String(payload.counts[t])))
+    const actual = counts('restore', payload.schemaVersion);
+    if (
+      tablesFor(payload.schemaVersion).some((t) => String(actual[t]) !== String(payload.counts[t]))
+    )
       throw Error('RESTORE_COUNTS_DIFFER');
     console.log(
-      'RESTORE_CHECK_PASS: 19 table counts match; 10 migration rows retained. Target left intact.',
+      `RESTORE_CHECK_PASS: ${tablesFor(payload.schemaVersion).length} table counts match; ${payload.schemaVersion} migration rows retained. Target left intact.`,
     );
   }
 }
@@ -263,4 +277,4 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-module.exports = { seal, unseal, keyFrom, argsFor, outside };
+module.exports = { seal, unseal, keyFrom, argsFor, outside, tablesFor, expectedVersion };

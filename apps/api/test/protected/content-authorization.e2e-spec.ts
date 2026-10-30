@@ -1,3 +1,5 @@
+import { CourseAccessService } from '../../src/modules/admissions/course-access.service';
+import { NotFoundException } from '@nestjs/common';
 /**
  * CP-01 content HTTP authorization e2e tests.
  *
@@ -166,6 +168,15 @@ function buildSlice() {
   @Module({
     controllers: [AuthController, ContentController],
     providers: [
+      {
+        provide: CourseAccessService,
+        useValue: {
+          assert: async (actor: { roles: string[] }) => {
+            if (!actor.roles.some((r) => r === 'TEACHER' || r === 'ADMIN'))
+              throw new NotFoundException();
+          },
+        },
+      },
       { provide: AuthService, useFactory: () => new AuthService(deps) },
       {
         provide: ContentService,

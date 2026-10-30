@@ -58,6 +58,7 @@ const APPROVED_MODELS = new Set([
   'ClassEnrollment',
   'LessonAssignment',
   'TeacherNote',
+  'CourseApplication', // ENROLL-01 approved admissions.
 ]);
 // Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
 // learning events, CP-04 mastery projection) + Prisma metadata.
@@ -82,6 +83,7 @@ const APPROVED_TABLES = new Set([
   'class_enrollments',
   'lesson_assignments',
   'teacher_notes',
+  'course_applications', // ENROLL-01 approved additive table.
 ]);
 
 // Test files that intentionally contain SYNTHETIC fixtures for the config
@@ -89,6 +91,7 @@ const APPROVED_TABLES = new Set([
 // checks them for high-signal patterns (keys, tokens) — only the generic
 // "hardcoded secret assignment" heuristic is relaxed.
 const ALLOWLIST_TEST_FILES = new Set([
+  'apps/api/test/protected/admissions.spec.ts', // Synthetic password literals only; high-signal secret scan remains enabled.
   'apps/api/test/protected/config.spec.ts',
   'apps/api/test/protected/spa-config.spec.ts',
   'apps/api/test/protected/health.e2e-spec.ts',

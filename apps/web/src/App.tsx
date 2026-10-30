@@ -1,3 +1,4 @@
+import { LearningTools } from './learning-tools/LearningTools';
 /**
  * CLP SPA root (CP-00 skeleton + CP-05 student MVP).
  *
@@ -38,6 +39,7 @@ type Step =
 export function App() {
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [step, setStep] = useState<Step>({ view: 'boot' });
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [nextBusy, setNextBusy] = useState(false);
   const [teacherBusy, setTeacherBusy] = useState(false);
   useEffect(() => {
@@ -155,96 +157,127 @@ export function App() {
           ) : null}
         </header>
         <main id="clp-main" tabIndex={-1}>
-          {step.view === 'boot' ? <p role="status">{ui.common.loading}</p> : null}
-
-          {step.view === 'login' ? (
-            <LoginScreen
-              onAuthenticated={(p) => {
-                setPrincipal(p);
-                setStep({
-                  view: canTeach(p) ? 'teacher' : canStudy(p) ? 'student' : 'unauthorized',
-                });
-              }}
-            />
-          ) : null}
-
-          {step.view === 'teacher' && principal ? (
-            <TeacherWorkspace
-              key={principal.publicId}
-              principal={principal}
-              onExpired={toLogin}
-              onBusyChange={setTeacherBusy}
-            />
-          ) : null}
-          {step.view === 'unauthorized' ? (
-            <p role="alert">
-              Tài khoản này chưa có quyền truy cập giao diện học viên hoặc giáo viên. Vui lòng liên
-              hệ quản trị viên.
+          {!toolsOpen && step.view !== 'teacher' && step.view !== 'student' ? (
+            <p className="learning-tool-entry">
+              <button
+                type="button"
+                className="clp-button clp-button--secondary"
+                data-learning-tools-trigger
+                onClick={() => setToolsOpen(true)}
+              >
+                Công cụ học tập
+              </button>
             </p>
           ) : null}
+          {toolsOpen ? (
+            <LearningTools
+              onClose={() => {
+                setToolsOpen(false);
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector<HTMLButtonElement>('[data-learning-tools-trigger]')
+                    ?.focus(),
+                );
+              }}
+            />
+          ) : null}
+          <div hidden={toolsOpen}>
+            {step.view === 'boot' ? <p role="status">{ui.common.loading}</p> : null}
 
-          {step.view === 'today' && principal ? (
-            <>
-              <button
-                className="clp-button clp-button--secondary"
-                onClick={() => setStep({ view: 'student' })}
-              >
-                Về không gian học viên
-              </button>
-              <p>Tự học độc lập — không phải danh sách bài được giao theo lớp.</p>
-              <PreviewEntry onOpen={() => setStep({ view: 'lesson-preview' })} />
-              <TodayScreen
+            {step.view === 'login' ? (
+              <LoginScreen
+                onAuthenticated={(p) => {
+                  setPrincipal(p);
+                  setStep({
+                    view: canTeach(p) ? 'teacher' : canStudy(p) ? 'student' : 'unauthorized',
+                  });
+                }}
+              />
+            ) : null}
+
+            {step.view === 'teacher' && principal ? (
+              <TeacherWorkspace
+                key={principal.publicId}
                 principal={principal}
-                onContinue={() => void requestNext()}
-                onLoggedOut={toLogin}
+                onExpired={toLogin}
+                onTools={() => setToolsOpen(true)}
+                onBusyChange={setTeacherBusy}
               />
-            </>
-          ) : null}
-          {step.view === 'student' && principal && canStudy(principal) ? (
-            <StudentWorkspace
-              onExpired={toLogin}
-              onSelfStudy={() => setStep({ view: 'today' })}
-              onExercise={(exercise) => {
-                rememberExercise(sessionStorage, exercise.sessionId);
-                setStep({ view: 'exercise', sessionId: exercise.sessionId });
-              }}
-            />
-          ) : null}
-          {step.view === 'lesson-preview' && principal && canStudy(principal) ? (
-            <LessonReader onBack={() => setStep({ view: 'today' })} />
-          ) : null}
-
-          {step.view === 'exercise' ? (
-            <ExerciseScreen
-              sessionId={step.sessionId}
-              onResult={onResult}
-              onExpired={() => {
-                forgetExercise(sessionStorage);
-                setStep({ view: 'today' });
-              }}
-            />
-          ) : null}
-
-          {step.view === 'result' ? (
-            <>
-              <button
-                className="clp-button clp-button--secondary"
-                onClick={() => setStep({ view: 'student' })}
-              >
-                Về bài được giao và lớp học
-              </button>
-              <p>
-                Nút bài tiếp theo sử dụng hàng đợi tự học, không xác nhận hoàn thành bài được giao.
+            ) : null}
+            {step.view === 'unauthorized' ? (
+              <p role="alert">
+                Tài khoản này chưa có quyền truy cập giao diện học viên hoặc giáo viên. Vui lòng
+                liên hệ quản trị viên.
               </p>
-              <ResultScreen
-                result={step.result}
-                onNext={() => void requestNext()}
-                onToday={() => setStep({ view: 'today' })}
-                nextBusy={nextBusy}
-                nextError={nextError}
+            ) : null}
+
+            {step.view === 'today' && principal ? (
+              <>
+                <button
+                  className="clp-button clp-button--secondary"
+                  onClick={() => setStep({ view: 'student' })}
+                >
+                  Về không gian học viên
+                </button>
+                <p>Tự học độc lập — không phải danh sách bài được giao theo lớp.</p>
+                <PreviewEntry onOpen={() => setStep({ view: 'lesson-preview' })} />
+                <TodayScreen
+                  principal={principal}
+                  onContinue={() => void requestNext()}
+                  onLoggedOut={toLogin}
+                />
+              </>
+            ) : null}
+            {step.view === 'student' && principal && canStudy(principal) ? (
+              <StudentWorkspace
+                onTools={() => setToolsOpen(true)}
+                accountId={principal.publicId}
+                onResult={onResult}
+                onExpired={toLogin}
+                onSelfStudy={() => setStep({ view: 'today' })}
+                onExercise={(exercise) => {
+                  rememberExercise(sessionStorage, exercise.sessionId);
+                  setStep({ view: 'exercise', sessionId: exercise.sessionId });
+                }}
               />
-            </>
-          ) : null}
+            ) : null}
+            {step.view === 'lesson-preview' && principal && canStudy(principal) ? (
+              <LessonReader onBack={() => setStep({ view: 'today' })} />
+            ) : null}
+
+            {step.view === 'exercise' ? (
+              <ExerciseScreen
+                sessionId={step.sessionId}
+                onResult={onResult}
+                onExpired={() => {
+                  forgetExercise(sessionStorage);
+                  setStep({ view: 'today' });
+                }}
+              />
+            ) : null}
+
+            {step.view === 'result' ? (
+              <>
+                <button
+                  className="clp-button clp-button--secondary"
+                  onClick={() => setStep({ view: 'student' })}
+                >
+                  Về bài được giao và lớp học
+                </button>
+                <p>
+                  Nút bài tiếp theo sử dụng hàng đợi tự học, không xác nhận hoàn thành bài được
+                  giao.
+                </p>
+                <ResultScreen
+                  result={step.result}
+                  onNext={() => void requestNext()}
+                  onToday={() => setStep({ view: 'today' })}
+                  nextBusy={nextBusy}
+                  nextError={nextError}
+                />
+              </>
+            ) : null}
+          </div>
         </main>
       </div>
     </>

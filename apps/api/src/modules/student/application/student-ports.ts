@@ -44,9 +44,12 @@ export interface StudentContentReader {
    * Published lessons in a deterministic teaching order (course, unit, lesson
    * position, public id). An empty array is a valid "no content" answer.
    */
-  listPublishedLessons(): Promise<StudentLesson[]>;
+  listPublishedLessons(actorPublicId: string): Promise<StudentLesson[]>;
   /** Ordered items of a published lesson; null when the lesson is not published. */
-  listPublishedLessonItems(lessonPublicId: string): Promise<StudentLessonItem[] | null>;
+  listPublishedLessonItems(
+    lessonPublicId: string,
+    actorPublicId: string,
+  ): Promise<StudentLessonItem[] | null>;
 }
 
 /** A CP-04 projection as consumed for TODAY ordering. */

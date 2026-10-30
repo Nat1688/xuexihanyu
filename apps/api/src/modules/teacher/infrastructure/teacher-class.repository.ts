@@ -1,3 +1,7 @@
+import {
+  readLessonCompletions,
+  completionKey,
+} from '../../content/infrastructure/lesson-completion.reader';
 /**
  * CP-06 class adapter (`teaching_classes`).
  *
@@ -47,6 +51,67 @@ function toRecord(row: ClassRow): ClassRecord {
 export class PrismaTeacherClassRepository implements ClassRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async overview(ownerPublicId: string) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const [courses, classes, students, lessons, assignments] = await Promise.all([
+          tx.course.count({ where: { author: { publicId: ownerPublicId } } }),
+          tx.teachingClass.count({ where: { owner: { publicId: ownerPublicId } } }),
+          tx.classEnrollment.findMany({
+            where: { class: { owner: { publicId: ownerPublicId } } },
+            distinct: ['studentId'],
+            select: { studentId: true },
+          }),
+          tx.lesson.count({
+            where: {
+              unit: { course: { author: { publicId: ownerPublicId } } },
+              visibility: 'PUBLISHED',
+            },
+          }),
+          tx.lessonAssignment.findMany({
+            where: {
+              class: { owner: { publicId: ownerPublicId } },
+              lesson: { visibility: 'PUBLISHED' },
+            },
+            select: {
+              student: { select: { publicId: true } },
+              lesson: { select: { publicId: true } },
+            },
+          }),
+        ]);
+        const states = await readLessonCompletions(
+          tx,
+          assignments.map((row) => ({
+            studentId: row.student.publicId,
+            lessonId: row.lesson.publicId,
+          })),
+        );
+        const completed = assignments.filter(
+          (row) => states.get(completionKey(row.student.publicId, row.lesson.publicId))?.completed,
+        ).length;
+        return {
+          courses,
+          classes,
+          students: students.length,
+          lessons,
+          assignments: assignments.length,
+          completed,
+          pending: assignments.length - completed,
+        };
+      },
+      { isolationLevel: 'RepeatableRead', timeout: 30000 },
+    );
+  }
+
+  async update(publicId: string, title: string, term: string | null): Promise<ClassRecord> {
+    return toRecord(
+      await this.prisma.teachingClass.update({
+        where: { publicId },
+        data: { title, term },
+        select: CLASS_SELECT,
+      }),
+    );
+  }
   async create(input: NewClass): Promise<ClassRecord | null> {
     const owner = await this.prisma.user.findUnique({
       where: { publicId: input.ownerPublicId },

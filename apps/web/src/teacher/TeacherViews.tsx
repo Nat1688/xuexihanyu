@@ -34,7 +34,9 @@ export function ResourceView<T>({
 export function ClassCards({
   classes,
   onOpen,
+  actionLabel = 'Xem lớp',
 }: {
+  actionLabel?: string;
   classes: TeacherClass[];
   onOpen: (value: TeacherClass) => void;
 }) {
@@ -55,7 +57,7 @@ export function ClassCards({
           <span className="tw-tag">{klass.term || 'Chưa đặt học kỳ'}</span>
           <span className="tw-class-title">{klass.title}</span>
           <span className="clp-muted">
-            {displayNumber(klass.enrolled)} lượt ghi danh · Xem lớp{' '}
+            {displayNumber(klass.enrolled)} lượt ghi danh · {actionLabel}{' '}
             <span aria-hidden="true">↗</span>
           </span>
         </button>
@@ -165,13 +167,21 @@ export function StudentRecord({ detail }: { detail: StudentDetail }) {
             {detail.assignments.map((assignment) => (
               <li key={assignment.assignmentId}>
                 <strong>{assignment.lessonTitle}</strong>
+                {assignment.completion ? (
+                  <span>
+                    {assignment.completion.completed ? 'Đã hoàn thành' : 'Chưa hoàn thành'} ·{' '}
+                    {assignment.completion.correct}/{assignment.completion.total} mục đúng ít nhất
+                    một lần
+                  </span>
+                ) : null}
                 <span>{displayDate(assignment.dueAt)}</span>
               </li>
             ))}
           </ul>
         )}
         <p className="tw-fine">
-          Hạn nộp hiển thị theo lịch đã đặt. Chưa có trạng thái hoàn thành bài được giao.
+          Hoàn thành khi đã trả lời đúng mỗi mục luyện tập ít nhất một lần. Lịch sử tự học cùng bài
+          được tính; bài không có mục luyện tập chưa được coi là hoàn thành.
         </p>
       </section>
       <div className="tw-columns">

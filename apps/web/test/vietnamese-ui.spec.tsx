@@ -174,13 +174,14 @@ describe('VI-01 canonical Vietnamese presentation', () => {
     expect(exerciseMode('unknown')).toBe('Luyện tập');
     expect(learningState('unknown')).toBe('Chưa xác định');
   });
-  it('formats dates using Vietnamese and preserves the browser timezone', () => {
+  it('formats dates using Vietnamese and explicit Vietnam timezone (CORE-01 owner directive)', () => {
     const value = '2026-10-23T10:30:00Z';
     expect(displayDate(value)).toBe(
       new Date(value).toLocaleString('vi-VN', {
         year: 'numeric',
-        month: 'short',
-        day: 'numeric',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        month: '2-digit',
+        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       }),

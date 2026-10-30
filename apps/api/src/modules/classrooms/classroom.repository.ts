@@ -1,3 +1,7 @@
+import {
+  readLessonCompletions,
+  completionKey,
+} from '../content/infrastructure/lesson-completion.reader';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../foundation/prisma.service';
@@ -155,10 +159,33 @@ export class ClassroomRepository {
         }),
       ),
     );
+    const recentResults = await this.db.answerSubmission.findMany({
+      where: {
+        learningEventPublicId: { not: null },
+        createdAt: { gte: from, lt: now },
+        exerciseSession: {
+          actor: { publicId: actor.publicId },
+          lesson: { publicId: { in: lessonIds } },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      take: 20,
+      select: {
+        correct: true,
+        createdAt: true,
+        exerciseSession: { select: { publicId: true, lesson: { select: { title: true } } } },
+      },
+    });
     return {
       from: from.toISOString(),
       to: now.toISOString(),
       days: 30,
+      recentResults: recentResults.map((row) => ({
+        sessionId: row.exerciseSession.publicId,
+        lessonTitle: row.exerciseSession.lesson.title,
+        correct: row.correct,
+        submittedAt: row.createdAt.toISOString(),
+      })),
       assignedLessons: lessonIds.length,
       attempts: correct + incorrect,
       correct,
@@ -187,6 +214,10 @@ export class ClassroomRepository {
       include: { class: true, lesson: true },
       orderBy: [{ createdAt: 'desc' }, { publicId: 'asc' }],
     });
+    const states = await readLessonCompletions(
+      this.db,
+      rows.map((row) => ({ studentId: actor.publicId, lessonId: row.lesson.publicId })),
+    );
     return rows.map((row) => ({
       assignmentId: row.publicId,
       classId: row.class.publicId,
@@ -194,6 +225,7 @@ export class ClassroomRepository {
       lessonId: row.lesson.publicId,
       lessonTitle: row.lesson.title,
       dueAt: row.dueAt?.toISOString() ?? null,
+      completion: states.get(completionKey(actor.publicId, row.lesson.publicId)),
     }));
   }
 }

@@ -97,6 +97,9 @@ model User {
   authoredTeacherNotes TeacherNote[]        @relation("AuthoredTeacherNotes")
   studentTeacherNotes  TeacherNote[]        @relation("StudentTeacherNotes")
 
+  courseApplications   CourseApplication[] @relation("Applicant")
+  reviewedApplications CourseApplication[] @relation("Reviewer")
+
   @@map("users")
 }
 
@@ -215,9 +218,10 @@ model Course {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  author User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  units  Unit[]
-  events LearningEvent[]
+  author       User                @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  units        Unit[]
+  events       LearningEvent[]
+  applications CourseApplication[]
 
   @@index([position])
   @@index([visibility])
@@ -585,11 +589,12 @@ model TeachingClass {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner       User               @relation("TaughtClasses", fields: [ownerId], references: [id], onDelete: Restrict)
-  enrollments ClassEnrollment[]
-  assignments LessonAssignment[]
-  notes       TeacherNote[]
-  invitation  ClassInvitation?
+  owner        User                @relation("TaughtClasses", fields: [ownerId], references: [id], onDelete: Restrict)
+  enrollments  ClassEnrollment[]
+  assignments  LessonAssignment[]
+  notes        TeacherNote[]
+  invitation   ClassInvitation?
+  applications CourseApplication[]
 
   @@index([ownerId, createdAt])
   @@map("teaching_classes")
@@ -662,4 +667,33 @@ model TeacherNote {
 
   @@index([authorId, classId, studentId, createdAt])
   @@map("teacher_notes")
+}
+
+// ENROLL-01: decisions are retained; terminal applications are never edited.
+enum CourseApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model CourseApplication {
+  id         String                  @id @default(uuid()) @db.Uuid
+  publicId   String                  @unique @default(uuid()) @map("public_id") @db.Uuid
+  studentId  String                  @map("student_id") @db.Uuid
+  courseId   String                  @map("course_id") @db.Uuid
+  status     CourseApplicationStatus @default(PENDING)
+  createdAt  DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  decidedAt  DateTime?               @map("decided_at") @db.Timestamptz(6)
+  reviewerId String?                 @map("reviewer_id") @db.Uuid
+  classId    String?                 @map("class_id") @db.Uuid
+  reason     String?                 @db.VarChar(500)
+  student    User                    @relation("Applicant", fields: [studentId], references: [id], onDelete: Restrict)
+  reviewer   User?                   @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  course     Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  class      TeachingClass?          @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, createdAt])
+  @@index([courseId, status, createdAt])
+  @@map("course_applications")
 }

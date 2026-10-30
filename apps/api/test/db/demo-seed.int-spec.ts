@@ -38,6 +38,7 @@ describeDb('DS-01 PostgreSQL seed and real Student/Teacher HTTP', () => {
     evidence: await prisma.learningEvent.count(),
     mastery: await prisma.masteryProjection.count(),
     answers: await prisma.answerSubmission.count(),
+    admissions: await prisma.courseApplication.count(),
   });
   beforeAll(async () => {
     prisma = new PrismaClient({ datasources: { db: { url } } });
@@ -142,6 +143,7 @@ describeDb('DS-01 PostgreSQL seed and real Student/Teacher HTTP', () => {
       evidence: 0,
       mastery: 0,
       answers: 0,
+      admissions: 0,
     });
   });
 
@@ -257,6 +259,24 @@ describeDb('DS-01 PostgreSQL seed and real Student/Teacher HTTP', () => {
       .send({ login: 'student.disabled@example.invalid', password })
       .expect(401);
     await http.get('/student/today').expect(401);
+    // ENROLL-01 applies to pre-existing/demo students too: no implicit course grant.
+    const locked = await http.get('/student/today').set('Cookie', student.cookies).expect(200);
+    expect(locked.body.empty).toBe(true);
+    const course = await prisma.course.findFirstOrThrow();
+    const klass = await prisma.teachingClass.findFirstOrThrow();
+    const admission = await http
+      .post('/admissions/applications')
+      .set('Cookie', student.cookies)
+      .set('x-csrf-token', student.csrf)
+      .send({ courseId: course.publicId })
+      .expect(201);
+    const admin = await login('admin');
+    await http
+      .post(`/admissions/applications/${admission.body.publicId}/decision`)
+      .set('Cookie', admin.cookies)
+      .set('x-csrf-token', admin.csrf)
+      .send({ decision: 'APPROVED', classId: klass.publicId })
+      .expect(200);
     const today = await http.get('/student/today').set('Cookie', student.cookies).expect(200);
     expect(today.body.empty).toBe(false);
     expect(today.body.entries.length).toBeGreaterThan(0);

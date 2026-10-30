@@ -1,3 +1,5 @@
+import { compositionRevision } from '../application/lesson-revision';
+import { ContentConflictError } from '../domain';
 /**
  * Prisma-backed content repository (CP-01).
  *
@@ -123,6 +125,72 @@ function toItem(row: ItemRow): StoredItem {
 @Injectable()
 export class PrismaContentRepository implements ContentRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async readComposition(publicId: string) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const lesson = await tx.lesson.findUnique({ where: { publicId }, select: LESSON_SELECT });
+        if (!lesson) return null;
+        const links = await tx.lessonLearningItem.findMany({
+          where: { lesson: { publicId } },
+          select: { learningItem: { select: ITEM_SELECT } },
+          orderBy: { position: 'asc' },
+        });
+        return { lesson: toLesson(lesson), items: links.map((link) => toItem(link.learningItem)) };
+      },
+      { isolationLevel: 'RepeatableRead' },
+    );
+  }
+
+  async updateCourse(input: StoredNode): Promise<void> {
+    await this.prisma.course.update({
+      where: { publicId: input.publicId },
+      data: { title: input.title, description: input.description, visibility: input.visibility },
+    });
+  }
+
+  async saveComposition(
+    input: import('../application/content-repository').LessonComposition,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM lessons WHERE public_id = ${input.node.publicId}::uuid FOR UPDATE`;
+      const before = await tx.lesson.findUniqueOrThrow({
+        where: { publicId: input.node.publicId },
+        select: LESSON_SELECT,
+      });
+      const links = await tx.lessonLearningItem.findMany({
+        where: { lesson: { publicId: input.node.publicId } },
+        select: { learningItem: { select: ITEM_SELECT } },
+        orderBy: { position: 'asc' },
+      });
+      if (
+        compositionRevision({
+          lesson: toLesson(before),
+          items: links.map((link) => toItem(link.learningItem)),
+        }) !== input.expectedRevision
+      )
+        throw new ContentConflictError('lesson changed; reload before saving');
+      const lesson = await tx.lesson.update({
+        where: { publicId: input.node.publicId },
+        data: {
+          title: input.node.title,
+          description: input.node.description,
+          visibility: input.node.visibility,
+        },
+      });
+      await tx.lessonLearningItem.deleteMany({ where: { lessonId: lesson.id } });
+      for (const [position, item] of input.items.entries()) {
+        const row = await tx.learningItem.upsert({
+          where: { publicId: item.publicId },
+          update: {},
+          create: { ...item, reference: (item.reference ?? undefined) as never },
+        });
+        await tx.lessonLearningItem.create({
+          data: { lessonId: lesson.id, learningItemId: row.id, position },
+        });
+      }
+    });
+  }
 
   // --- courses -----------------------------------------------------------
   async findCourseBySlug(slug: string): Promise<StoredNode | null> {

@@ -1,12 +1,31 @@
-import { useState } from 'react';
-import { ApiError, studentApi, type ExerciseView } from '../api/client';
+import { CourseAdmissions } from '../admissions/CourseAdmissions';
+import { PublishedLesson } from '../curriculum/Lesson';
+import type { ClassAssignment } from '../api/classrooms';
+import { useEffect, useState } from 'react';
+import { ApiError, studentApi, type ResultView, type ExerciseView } from '../api/client';
 import { classroomApi, classroomError } from '../api/classrooms';
 import { useResource } from '../teacher/useResource';
 import { displayDate } from '../teacher/model';
 import { displayNumber } from '../ui-vi';
 
-type Tab = 'classes' | 'join' | 'assignments' | 'progress';
+function stored(key: string): string | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function remember(key: string, value: string | null) {
+  try {
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    /* Storage may be disabled. Server access remains authoritative. */
+  }
+}
+type Tab = 'courses' | 'classes' | 'join' | 'assignments' | 'progress';
 const tabs: [Tab, string][] = [
+  ['courses', 'Đăng ký khóa học'],
   ['classes', 'Lớp của tôi'],
   ['join', 'Tham gia lớp'],
   ['assignments', 'Bài được giao'],
@@ -16,12 +35,21 @@ export function StudentWorkspace({
   onExpired,
   onSelfStudy,
   onExercise,
+  accountId,
+  onResult,
+  onTools,
 }: {
+  onTools?: () => void;
+  accountId?: string;
+  onResult?: (result: ResultView) => void;
   onExpired: () => void;
   onSelfStudy: () => void;
   onExercise: (value: ExerciseView) => void;
 }) {
-  const [tab, setTab] = useState<Tab>('classes');
+  const resumeKey = accountId ? `xuexihanyu:reading:${accountId}` : '';
+  const [tab, setTab] = useState<Tab>(() =>
+    resumeKey && stored(resumeKey) ? 'assignments' : 'courses',
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function logout() {
@@ -38,7 +66,7 @@ export function StudentWorkspace({
     }
   }
   return (
-    <section>
+    <section className="student-workspace">
       <h1>Không gian học viên</h1>
       <nav className="clp-actions" aria-label="Điều hướng học viên">
         {tabs.map(([id, label]) => (
@@ -52,6 +80,17 @@ export function StudentWorkspace({
             {label}
           </button>
         ))}
+        {onTools ? (
+          <button
+            type="button"
+            className="clp-button clp-button--secondary"
+            data-learning-tools-trigger
+            disabled={busy}
+            onClick={onTools}
+          >
+            Công cụ học tập
+          </button>
+        ) : null}
         <button className="clp-button clp-button--secondary" disabled={busy} onClick={onSelfStudy}>
           Tự học
         </button>
@@ -64,13 +103,19 @@ export function StudentWorkspace({
         </button>
       </nav>
       {error ? <p role="alert">{error}</p> : null}
-      <StudentSection
-        key={tab}
-        tab={tab}
-        onExpired={onExpired}
-        onExercise={onExercise}
-        onBusy={setBusy}
-      />
+      {tab === 'courses' ? (
+        <CourseAdmissions onExpired={onExpired} />
+      ) : (
+        <StudentSection
+          key={tab}
+          tab={tab}
+          onResult={onResult}
+          resumeKey={resumeKey}
+          onExpired={onExpired}
+          onExercise={onExercise}
+          onBusy={setBusy}
+        />
+      )}
     </section>
   );
 }
@@ -80,7 +125,11 @@ function StudentSection({
   onExpired,
   onExercise,
   onBusy,
+  resumeKey,
+  onResult,
 }: {
+  resumeKey: string;
+  onResult?: (result: ResultView) => void;
   tab: Tab;
   onExpired: () => void;
   onExercise: (value: ExerciseView) => void;
@@ -89,6 +138,15 @@ function StudentSection({
   const classes = useResource(classroomApi.classes, onExpired);
   const assignments = useResource(classroomApi.assignments, onExpired);
   const progress = useResource(classroomApi.progress, onExpired);
+  const [reading, setReading] = useState<ClassAssignment | null>(null);
+  useEffect(() => {
+    if (tab !== 'assignments' || assignments.state.status !== 'ready' || !resumeKey) return;
+    const id = stored(resumeKey);
+    if (!id) return;
+    const authorized = assignments.state.data.assignments.find((row) => row.assignmentId === id);
+    if (authorized) setReading(authorized);
+    else remember(resumeKey, null);
+  }, [tab, assignments.state, resumeKey]);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -128,6 +186,22 @@ function StudentSection({
         </button>
       </div>
     );
+  if (reading)
+    return (
+      <>
+        {error ? <p role="alert">{error}</p> : null}
+        <PublishedLesson
+          id={reading.lessonId}
+          resumeKey={resumeKey ? `${resumeKey}:${reading.assignmentId}:position` : undefined}
+          onExpired={onExpired}
+          onBack={() => {
+            setReading(null);
+            if (resumeKey) remember(resumeKey, null);
+          }}
+          onPractice={() => void mutate(async () => onExercise(await classroomApi.start(reading)))}
+        />
+      </>
+    );
   return (
     <div aria-busy={busy}>
       {tab === 'join' ? (
@@ -165,6 +239,27 @@ function StudentSection({
       {tab === 'classes' && classes.state.status === 'ready' ? (
         <>
           <h2>Lớp của tôi</h2>
+          {assignments.state.status === 'ready' && progress.state.status === 'ready' ? (
+            <div className="tw-stats">
+              <div>
+                <span>Lớp đang tham gia</span>
+                <strong>{displayNumber(classes.state.data.classes.length)}</strong>
+              </div>
+              <div>
+                <span>Bài chưa hoàn thành</span>
+                <strong>
+                  {displayNumber(
+                    assignments.state.data.assignments.filter((row) => !row.completion?.completed)
+                      .length,
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Lượt luyện tập · 30 ngày</span>
+                <strong>{displayNumber(progress.state.data.attempts)}</strong>
+              </div>
+            </div>
+          ) : null}
           {!classes.state.data.classes.length ? (
             <p>Bạn chưa tham gia lớp nào. Hãy xin mã tham gia từ giáo viên.</p>
           ) : (
@@ -183,8 +278,8 @@ function StudentSection({
         <>
           <h2>Bài được giao</h2>
           <p>
-            Chỉ hiển thị bài học đã xuất bản được giao cho bạn trong các lớp đã tham gia. Làm một
-            bài tập không đồng nghĩa hoàn thành bài được giao.
+            Chỉ hiển thị bài học đã xuất bản được giao cho bạn trong các lớp đã tham gia. Hoàn thành
+            khi đã trả lời đúng mỗi mục luyện tập ít nhất một lần.
           </p>
           {!assignments.state.data.assignments.length ? (
             <p>Chưa có bài được giao có thể truy cập.</p>
@@ -192,9 +287,25 @@ function StudentSection({
             assignments.state.data.assignments.map((row) => (
               <article className="tw-panel" key={row.assignmentId}>
                 <h3>{row.lessonTitle}</h3>
+                {row.completion ? (
+                  <p>
+                    {row.completion.completed ? 'Đã hoàn thành' : 'Chưa hoàn thành'} ·{' '}
+                    {row.completion.correct}/{row.completion.total} mục luyện tập đã trả lời đúng
+                  </p>
+                ) : null}
                 <p>
                   {row.classTitle} · Hạn: {row.dueAt ? displayDate(row.dueAt) : 'Chưa đặt'}
                 </p>
+                <button
+                  className="clp-button clp-button--secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setReading(row);
+                    if (resumeKey) remember(resumeKey, row.assignmentId);
+                  }}
+                >
+                  Mở bài học
+                </button>
                 <button
                   className="clp-button"
                   disabled={busy}
@@ -221,6 +332,27 @@ function StudentSection({
             {displayNumber(progress.state.data.correct)} đúng ·{' '}
             {displayNumber(progress.state.data.incorrect)} chưa đúng.
           </p>
+          <h3>Lịch sử luyện tập gần đây</h3>
+          <p className="clp-muted">
+            Tối đa 20 lượt đã lưu trong 30 ngày. Mở lại để xem đáp án và kết quả.
+          </p>
+          {progress.state.data.recentResults?.map((row) => (
+            <article className="tw-panel" key={row.sessionId}>
+              <strong>{row.lessonTitle}</strong>
+              <p>
+                {row.correct ? 'Đúng' : 'Chưa đúng'} · {displayDate(row.submittedAt)}
+              </p>
+              <button
+                className="clp-button clp-button--secondary"
+                disabled={busy}
+                onClick={() =>
+                  void mutate(async () => onResult?.(await studentApi.result(row.sessionId)))
+                }
+              >
+                Xem kết quả
+              </button>
+            </article>
+          ))}
           {!progress.state.data.attempts ? <p>Chưa có dữ liệu trả lời trong phạm vi này.</p> : null}
         </>
       ) : null}

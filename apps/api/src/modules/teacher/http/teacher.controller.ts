@@ -94,6 +94,7 @@ function projectRoster(entry: RosterEntryView): Record<string, unknown> {
 function projectAssignment(view: AssignmentView): Record<string, unknown> {
   return {
     assignmentId: view.id,
+    completion: view.completion,
     studentId: view.studentId,
     lessonId: view.lessonId,
     lessonTitle: view.lessonTitle,
@@ -166,12 +167,28 @@ function projectNote(view: NoteView): Record<string, unknown> {
 export class TeacherController {
   constructor(private readonly teacher: TeacherService) {}
 
+  @Get('overview')
+  async overview(@Req() req: AuthenticatedRequest) {
+    return this.teacher.overview(actorOf(req));
+  }
+
   // --- classes -----------------------------------------------------------
 
   @Get('classes')
   async classes(@Req() req: AuthenticatedRequest): Promise<{ classes: Record<string, unknown>[] }> {
     const rows = await this.teacher.listClasses(actorOf(req));
     return { classes: rows.map(projectClass) };
+  }
+
+  @Post('classes/:classId/save')
+  @HttpCode(200)
+  async editClass(
+    @Req() req: AuthenticatedRequest,
+    @Param('classId') id: string,
+    @Body() body: { title?: unknown; term?: unknown },
+  ) {
+    assertCsrf(req);
+    return projectClass(await this.teacher.editClass(actorOf(req), id, body ?? {}));
   }
 
   @Post('classes')

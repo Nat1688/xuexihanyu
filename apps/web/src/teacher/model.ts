@@ -30,8 +30,9 @@ export function displayDate(value: string | null): string {
     ? 'Không có thông tin ngày'
     : date.toLocaleString(UI_LOCALE, {
         year: 'numeric',
-        month: 'short',
-        day: 'numeric',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        month: '2-digit',
+        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       });

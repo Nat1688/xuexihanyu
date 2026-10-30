@@ -1,3 +1,4 @@
+import { RegistrationService } from './application/registration.service';
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 
@@ -40,12 +41,14 @@ import { RoleGuard } from './http/role.guard';
  * OUT of scope here.
  *
  * Still DELIBERATELY ABSENT (later approved tasks): role mutation API/UI,
- * profiles/classes/enrollment/ownership; password reset/SSO/registration;
+ * profiles/classes/enrollment/ownership; password reset/SSO; ENROLL-01 now adds STUDENT-only self-registration;
  * production cookie-domain/TLS config.
  */
 @Module({
   controllers: [AuthController, Cp00AuthorizationController],
   providers: [
+    RegistrationService,
+    ScryptPasswordHasher,
     // Hashing boundary (CLP-00-05) — reused for password verification.
     { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },
     // Persistence ports (CLP-00-06).
@@ -90,6 +93,7 @@ import { RoleGuard } from './http/role.guard';
       provide: AUTH_CONTROLLER_OPTIONS,
       useFactory: (config: Readonly<ServerConfig>) => ({
         nodeEnv: config.NODE_ENV,
+        spaOrigin: config.SPA_ORIGIN,
         sessionTtlMinutes: config.SESSION_TTL_MINUTES,
       }),
       inject: [SERVER_CONFIG],

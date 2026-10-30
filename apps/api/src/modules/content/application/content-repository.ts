@@ -65,7 +65,23 @@ export interface CreateItemInput {
   readonly authorId: string;
 }
 
+export interface StoredComposition {
+  lesson: StoredNode;
+  items: StoredItem[];
+}
+
+export interface LessonComposition {
+  expectedRevision: string;
+  node: StoredNode;
+  items: CreateItemInput[];
+}
+
 export interface ContentRepository {
+  readComposition(publicId: string): Promise<StoredComposition | null>;
+  /** Atomic composition replacement; old items and evidence are retained. */
+  saveComposition(input: LessonComposition): Promise<void>;
+  updateCourse(input: StoredNode): Promise<void>;
+
   // --- courses -----------------------------------------------------------
   findCourseBySlug(slug: string): Promise<StoredNode | null>;
   findCourseByPublicId(publicId: string): Promise<StoredNode | null>;

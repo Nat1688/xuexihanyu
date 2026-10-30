@@ -375,3 +375,28 @@
     transition: none;
   }
 }
+@media (max-width: 720px) {
+  .tw-sidebar {
+    padding: 16px;
+    gap: 12px;
+  }
+  .tw-sidebar nav {
+    display: flex;
+    gap: 4px;
+  }
+  .tw-nav {
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+  .tw-profile {
+    gap: 8px;
+  }
+  .tw-profile strong {
+    font-size: 0.75rem;
+    flex: 1;
+  }
+  .tw-profile .clp-button {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+}

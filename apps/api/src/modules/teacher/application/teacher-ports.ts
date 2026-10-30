@@ -33,7 +33,18 @@ export interface NewClass {
   readonly term: string | null;
 }
 
+export interface TeacherOverview {
+  courses: number;
+  classes: number;
+  students: number;
+  lessons: number;
+  assignments: number;
+  completed: number;
+  pending: number;
+}
 export interface ClassRepository {
+  update(publicId: string, title: string, term: string | null): Promise<ClassRecord>;
+  overview(ownerPublicId: string): Promise<TeacherOverview>;
   /** Create a class owned by `ownerPublicId`; never accepts an arbitrary owner. */
   create(input: NewClass): Promise<ClassRecord | null>;
   /** List classes owned by the caller ONLY (ADMIN visibility is not applied here). */
@@ -78,6 +89,7 @@ export interface EnrollmentRepository {
 // --- assignments ------------------------------------------------------------
 
 export interface AssignmentRecord {
+  completion?: { total: number; correct: number; completed: boolean };
   readonly publicId: string;
   readonly classPublicId: string;
   readonly classOwnerPublicId: string;

@@ -45,3 +45,9 @@ prisma/generated/
 /deploy/oci01b2/evidence-local/
 /deploy/vi01/evidence-local/
 /deploy/cl01/evidence-local/
+
+# CORE-01 disposable development database and synthetic demo state
+.core-demo/
+
+# Local screenshots and test/deployment evidence
+/artifacts/

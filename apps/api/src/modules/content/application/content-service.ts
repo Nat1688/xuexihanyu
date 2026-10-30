@@ -1,3 +1,4 @@
+import { compositionRevision } from './lesson-revision';
 /**
  * Content application service (CP-01).
  *
@@ -25,6 +26,7 @@ import {
   type LearningItemKind,
   type HierarchyNode,
   type LearningItem,
+  ContentValidationError,
   ContentConflictError,
   ContentNotFoundError,
   assertCanCreateContent,
@@ -183,6 +185,84 @@ export class ContentService {
     });
 
     await this.deps.repository.attachItemToLesson(lessonPublicId, itemPublicId, ordered.position);
+  }
+
+  async readLesson(actor: ContentActor, publicId: string) {
+    const value = await this.deps.repository.readComposition(publicId);
+    if (!value || !canReadContent(value.lesson.visibility, actor.roles))
+      throw new ContentNotFoundError('lesson');
+    return {
+      lesson: toNode(value.lesson),
+      items: value.items.map(toItem),
+      revision: compositionRevision(value),
+    };
+  }
+
+  async editCourse(actor: ContentActor, publicId: string, draft: NodeDraft) {
+    const course = await this.deps.repository.findCourseByPublicId(publicId);
+    if (!course) throw new ContentNotFoundError('course');
+    assertCanMutateContent(actor, course.authorId);
+    const node = makeHierarchyNode({
+      ...draft,
+      slug: course.slug,
+      position: course.position,
+      publicId,
+      authorId: course.authorId,
+    });
+    await this.deps.repository.updateCourse(node);
+    return node;
+  }
+
+  async saveLesson(
+    actor: ContentActor,
+    publicId: string,
+    draft: NodeDraft & { items?: unknown; revision?: unknown },
+  ) {
+    const current = await this.readLesson(actor, publicId);
+    assertCanMutateContent(actor, current.lesson.authorId);
+    if (draft.revision !== undefined && draft.revision !== current.revision)
+      throw new ContentConflictError('lesson changed; reload before saving');
+    if (!Array.isArray(draft.items) || draft.items.length > 100)
+      throw new ContentValidationError('items', 'must be an array of at most 100 items');
+    const node = makeHierarchyNode({
+      ...draft,
+      slug: current.lesson.slug,
+      position: current.lesson.position,
+      publicId,
+      authorId: current.lesson.authorId,
+    });
+    const items = draft.items.map((raw: unknown) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new ContentValidationError('items', 'invalid item');
+      const input = raw as ItemDraft & { publicId?: string };
+      const validated = makeLearningItem({
+        ...input,
+        publicId: this.deps.newPublicId(),
+        authorId: actor.userId,
+      });
+      const previous = current.items.find((item) => item.publicId === input.publicId);
+      // Preserve unchanged identities/mastery. Changed content gets a new identity;
+      // shared source items, historical exercises and evidence never get overwritten.
+      const fields = [
+        'kind',
+        'simplified',
+        'traditional',
+        'pinyin',
+        'meaning',
+        'hskLevel',
+        'reference',
+      ] as const;
+      return previous &&
+        fields.every((key) => JSON.stringify(previous[key]) === JSON.stringify(validated[key]))
+        ? { ...validated, publicId: previous.publicId, authorId: previous.authorId }
+        : validated;
+    });
+    if (new Set(items.map((item) => item.publicId)).size !== items.length)
+      throw new ContentValidationError('items', 'duplicate item');
+    if (node.visibility === 'PUBLISHED' && !items.length)
+      throw new ContentValidationError('items', 'published lesson needs content');
+    await this.deps.repository.saveComposition({ node, items, expectedRevision: current.revision });
+    return this.readLesson(actor, publicId);
   }
 
   // --- deterministic reads -----------------------------------------------

@@ -1,3 +1,4 @@
+import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
 import { ConfigModule } from './config/config.module';
@@ -43,6 +44,7 @@ import { ClassroomsModule } from './modules/classrooms/classrooms.module';
     HealthModule,
     IdentityModule,
     ContentModule,
+    AdmissionsModule,
     ExerciseModule,
     LearningEventsModule,
     MasteryModule,

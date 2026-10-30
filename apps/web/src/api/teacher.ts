@@ -15,6 +15,7 @@ export interface RosterStudent {
   enrolledAt: string;
 }
 export interface Assignment {
+  completion?: { total: number; correct: number; completed: boolean };
   assignmentId: string;
   studentId: string;
   lessonId: string;
@@ -70,6 +71,18 @@ const segment = encodeURIComponent;
 const classPath = (classId: string) => `/teacher/classes/${segment(classId)}`;
 
 export const teacherApi = {
+  editClass: (classId: string, title: string, term: string | null) =>
+    request<TeacherClass>('POST', `${classPath(classId)}/save`, { title, term }),
+  overview: () =>
+    request<{
+      courses: number;
+      classes: number;
+      students: number;
+      lessons: number;
+      assignments: number;
+      completed: number;
+      pending: number;
+    }>('GET', '/teacher/overview'),
   classes: () => request<{ classes: TeacherClass[] }>('GET', '/teacher/classes'),
   createClass: (title: string, term: string | null) =>
     request<TeacherClass>('POST', '/teacher/classes', { title, term }),

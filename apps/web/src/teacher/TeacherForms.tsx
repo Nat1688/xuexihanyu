@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
-import { teacherApi } from '../api/teacher';
+import { teacherApi, type TeacherClass } from '../api/teacher';
 import { teacherError } from './model';
 import { ResourceView } from './TeacherViews';
 import { useResource } from './useResource';
+
+class BatchAssignmentError extends Error {}
 
 /** No automatic mutation retries: a network failure may happen after commit. */
 function useMutation(onExpired: () => void, onBusyChange?: (busy: boolean) => void) {
@@ -29,7 +31,8 @@ function useMutation(onExpired: () => void, onBusyChange?: (busy: boolean) => vo
     } catch (failure) {
       if (!active.current) return;
       if (failure instanceof ApiError && failure.status === 401) onExpired();
-      else setError(teacherError(failure));
+      else
+        setError(failure instanceof BatchAssignmentError ? failure.message : teacherError(failure));
     } finally {
       lock.current = false;
       onBusyChange?.(false);
@@ -44,23 +47,36 @@ export function CreateClassForm({
   onSaved,
   onCancel,
   onBusyChange,
+  initialClass,
 }: {
+  initialClass?: TeacherClass;
   onExpired: () => void;
-  onSaved: () => void;
+  onSaved: (saved?: TeacherClass) => void;
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [term, setTerm] = useState('');
+  const [title, setTitle] = useState(initialClass?.title || '');
+  const [term, setTerm] = useState(initialClass?.term || '');
   const mutation = useMutation(onExpired, onBusyChange);
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim()) return;
-    void mutation.run(() => teacherApi.createClass(title.trim(), term.trim() || null), onSaved);
+    void mutation.run(
+      () =>
+        initialClass
+          ? teacherApi.editClass(initialClass.classId, title.trim(), term.trim() || null)
+          : teacherApi.createClass(title.trim(), term.trim() || null),
+      () =>
+        onSaved(
+          initialClass
+            ? { ...initialClass, title: title.trim(), term: term.trim() || null }
+            : undefined,
+        ),
+    );
   }
   return (
     <form onSubmit={submit} className="tw-panel" aria-label="Tạo lớp">
-      <h2>Tạo không gian học tập mới</h2>
+      <h2>{initialClass ? 'Chỉnh sửa lớp học' : 'Tạo không gian học tập mới'}</h2>
       <fieldset disabled={mutation.busy} className="tw-fieldset">
         <div className="clp-field">
           <label htmlFor="class-title">Tên lớp</label>
@@ -93,7 +109,7 @@ export function CreateClassForm({
         ) : null}
         <div className="clp-actions">
           <button className="clp-button" disabled={!title.trim() || mutation.busy}>
-            {mutation.busy ? 'Đang tạo…' : 'Tạo lớp'}
+            {mutation.busy ? 'Đang lưu…' : initialClass ? 'Lưu lớp học' : 'Tạo lớp'}
           </button>
           <button className="clp-button clp-button--secondary" type="button" onClick={onCancel}>
             Hủy
@@ -109,20 +125,41 @@ export function AssignmentForm({
   studentId,
   onSaved,
   onExpired,
+  onBusyChange,
+  onAuthor,
 }: {
   classId: string;
-  studentId: string;
+  studentId: string | string[];
+  onAuthor?: () => void;
+  onBusyChange?: (busy: boolean) => void;
   onSaved: () => void;
   onExpired: () => void;
 }) {
+  const [assignBusy, setAssignBusy] = useState(false);
+  const busyChanged = useCallback(
+    (busy: boolean) => {
+      setAssignBusy(busy);
+      onBusyChange?.(busy);
+    },
+    [onBusyChange],
+  );
   const courses = useResource(teacherApi.courses, onExpired);
   const [courseId, setCourseId] = useState('');
   return (
-    <section className="tw-panel">
+    <fieldset className="tw-panel" disabled={assignBusy} aria-busy={assignBusy}>
       <h2>Giao bài học</h2>
-      <p className="clp-muted">
-        Chọn nội dung đã xuất bản cho học viên này. Chưa hỗ trợ giao đồng loạt cho cả lớp.
-      </p>
+      {onAuthor ? (
+        <p>
+          Chưa có bài học?{' '}
+          <button type="button" className="clp-button clp-button--secondary" onClick={onAuthor}>
+            Soạn và xuất bản bài học
+          </button>
+        </p>
+      ) : null}
+      {Array.isArray(studentId) ? (
+        <p>Giao cho {studentId.length} học viên đang hiển thị. Bài đã giao giữ nguyên hạn nộp.</p>
+      ) : null}
+      <p className="clp-muted">Chọn nội dung đã xuất bản và đặt hạn nộp theo giờ Việt Nam.</p>
       <ResourceView state={courses.state} retry={courses.refresh}>
         {(rows) => (
           <>
@@ -154,12 +191,14 @@ export function AssignmentForm({
                 studentId={studentId}
                 onSaved={onSaved}
                 onExpired={onExpired}
+                onAuthor={onAuthor}
+                onBusyChange={busyChanged}
               />
             ) : null}
           </>
         )}
       </ResourceView>
-    </section>
+    </fieldset>
   );
 }
 
@@ -169,7 +208,9 @@ function UnitPicker({
 }: {
   courseId: string;
   classId: string;
-  studentId: string;
+  studentId: string | string[];
+  onAuthor?: () => void;
+  onBusyChange?: (busy: boolean) => void;
   onSaved: () => void;
   onExpired: () => void;
 }) {
@@ -213,10 +254,14 @@ function LessonPicker({
   studentId,
   onSaved,
   onExpired,
+  onBusyChange,
+  onAuthor,
 }: {
   unitId: string;
   classId: string;
-  studentId: string;
+  studentId: string | string[];
+  onAuthor?: () => void;
+  onBusyChange?: (busy: boolean) => void;
   onSaved: () => void;
   onExpired: () => void;
 }) {
@@ -224,23 +269,43 @@ function LessonPicker({
   const lessons = useResource(load, onExpired);
   const [lessonId, setLessonId] = useState('');
   const [due, setDue] = useState('');
-  const mutation = useMutation(onExpired);
+  const mutation = useMutation(onExpired, onBusyChange);
   return (
     <ResourceView state={lessons.state} retry={lessons.refresh}>
       {(rows) => {
         const published = rows.filter((row) => row.visibility === 'PUBLISHED');
-        if (!published.length) return <p>Chưa có bài học đã xuất bản trong chương này.</p>;
+        if (!published.length)
+          return (
+            <div role="status">
+              <p>
+                Chưa có bài học đã xuất bản trong chương này. Cần soạn và xuất bản bài học trước khi
+                giao.
+              </p>
+              {onAuthor ? (
+                <button type="button" className="clp-button" onClick={onAuthor}>
+                  Soạn bài học →
+                </button>
+              ) : null}
+            </div>
+          );
         return (
           <form
             aria-label="Giao bài học"
             onSubmit={(event) => {
               event.preventDefault();
               if (!published.some((row) => row.publicId === lessonId)) return;
-              const instant = due ? new Date(due) : null;
+              const instant = due ? new Date(`${due}:00+07:00`) : null;
               if (instant && Number.isNaN(instant.getTime())) return;
               void mutation.run(
                 () =>
-                  teacherApi.assign(classId, studentId, lessonId, instant?.toISOString() ?? null),
+                  Array.isArray(studentId)
+                    ? assignClass(classId, studentId, lessonId, instant?.toISOString() ?? null)
+                    : teacherApi.assign(
+                        classId,
+                        studentId,
+                        lessonId,
+                        instant?.toISOString() ?? null,
+                      ),
                 onSaved,
               );
             }}
@@ -264,9 +329,7 @@ function LessonPicker({
                 </select>
               </div>
               <div className="clp-field">
-                <label htmlFor="assign-due">
-                  Hạn nộp (không bắt buộc, theo múi giờ địa phương)
-                </label>
+                <label htmlFor="assign-due">Hạn nộp (không bắt buộc, giờ Việt Nam, UTC+7)</label>
                 <input
                   id="assign-due"
                   className="clp-input"
@@ -289,4 +352,29 @@ function LessonPicker({
       }}
     </ResourceView>
   );
+}
+
+async function assignClass(
+  classId: string,
+  studentIds: string[],
+  lessonId: string,
+  dueAt: string | null,
+) {
+  let failed = 0,
+    succeeded = 0,
+    existing = 0;
+  for (const id of studentIds) {
+    try {
+      await teacherApi.assign(classId, id, lessonId, dueAt);
+      succeeded++;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) throw error;
+      if (error instanceof ApiError && error.status === 409) existing++;
+      else failed++;
+    }
+  }
+  if (failed)
+    throw new BatchAssignmentError(
+      `Đã giao: ${succeeded}. Đã có bài: ${existing}. Chưa giao được: ${failed}. Mở hồ sơ học viên để kiểm tra trước khi thử lại; bài đã có giữ nguyên hạn nộp.`,
+    );
 }

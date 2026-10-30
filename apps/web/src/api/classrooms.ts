@@ -6,6 +6,7 @@ export interface EnrolledClass {
   enrolledAt: string;
 }
 export interface ClassAssignment {
+  completion?: { total: number; correct: number; completed: boolean };
   assignmentId: string;
   classId: string;
   classTitle: string;
@@ -14,6 +15,12 @@ export interface ClassAssignment {
   dueAt: string | null;
 }
 export interface ClassProgress {
+  recentResults?: Array<{
+    sessionId: string;
+    lessonTitle: string;
+    correct: boolean;
+    submittedAt: string;
+  }>;
   days: number;
   assignedLessons: number;
   attempts: number;

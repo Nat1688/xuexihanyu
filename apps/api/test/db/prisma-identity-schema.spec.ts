@@ -55,6 +55,7 @@ const APPROVED_MODELS = [
   'ClassEnrollment',
   'LessonAssignment',
   'TeacherNote',
+  'CourseApplication',
 ];
 
 /** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
@@ -77,6 +78,7 @@ const APPROVED_TABLES = [
   'class_enrollments',
   'lesson_assignments',
   'teacher_notes',
+  'course_applications',
 ];
 
 /** The approved enums (CLP-00-05/06 + CP-01 + CP-03 + CP-04 + CP-05). */
@@ -88,6 +90,7 @@ const APPROVED_ENUMS = [
   'LearningEventType',
   'MasteryState',
   'ExerciseFormatKind',
+  'CourseApplicationStatus',
 ];
 
 /** The only tables a migration may create, plus Prisma metadata. */

@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const root = resolve(__dirname, '../../../..');
@@ -18,11 +19,23 @@ describe('CL-01 approved additive schema and recovery guards', () => {
     expect(sql).toContain('REFERENCES "teaching_classes"("id")');
     expect(sql).not.toMatch(/\b(?:DELETE FROM|DROP TABLE|TRUNCATE|UPDATE\s+")/i);
   });
-  it('backup/fingerprint rejects old schema before restore and includes invitation counts', () => {
-    const source = readFileSync(resolve(root, 'deploy/oci01b2/database.cjs'), 'utf8');
-    expect(source).toContain("'class_invitations'");
-    expect(source).toContain('payload.schemaVersion !== 10');
-    expect(source).toContain('Number(payload.counts._prisma_migrations) !== 10');
-    expect(source).toContain('19 table counts match; 10 migration rows retained');
+  it('backup/fingerprint schema selection retains migration10 and supports only explicit migration11', () => {
+    const tool = createRequire(__filename)(resolve(root, 'deploy/oci01b2/database.cjs'));
+    expect(tool.tablesFor(10)).toHaveLength(19);
+    expect(tool.tablesFor(10)).toContain('class_invitations');
+    expect(tool.tablesFor(10)).not.toContain('course_applications');
+    expect(tool.tablesFor(11)).toEqual([...tool.tablesFor(10), 'course_applications']);
+    expect(() => tool.tablesFor(9)).toThrow();
+    expect(() => tool.tablesFor(12)).toThrow();
+    const previous = process.env.CLP_EXPECTED_MIGRATIONS;
+    try {
+      process.env.CLP_EXPECTED_MIGRATIONS = '11';
+      expect(tool.expectedVersion()).toBe(11);
+      process.env.CLP_EXPECTED_MIGRATIONS = '9';
+      expect(() => tool.expectedVersion()).toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.CLP_EXPECTED_MIGRATIONS;
+      else process.env.CLP_EXPECTED_MIGRATIONS = previous;
+    }
   });
 });

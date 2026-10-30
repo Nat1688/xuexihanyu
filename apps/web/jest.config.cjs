@@ -1,5 +1,6 @@
 module.exports = {
   rootDir: '.',
+  moduleNameMapper: { '\\.css$': '<rootDir>/test/style-mock.cjs' },
   testEnvironment: 'node',
   roots: ['<rootDir>/test'],
   testRegex: '\\.spec\\.tsx?$',

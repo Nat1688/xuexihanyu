@@ -39,9 +39,11 @@ const APPROVED_TABLES = new Set([
   'exercise_sessions',
   'answer_submissions',
   'teaching_classes',
+  'class_invitations', // Existing CL-01 table retained by migration11.
   'class_enrollments',
   'lesson_assignments',
   'teacher_notes',
+  'course_applications', // ENROLL-01 approved additive table.
 ]);
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 

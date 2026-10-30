@@ -548,3 +548,30 @@ describe('StudentService — RESULT', () => {
     expect(reread.feedback).toBe(submitted.feedback);
   });
 });
+
+describe('ENROLL-01 pre-admission exercise sessions', () => {
+  it('denies resume and first submission after course access disappears, without writing evidence', async () => {
+    const { service, content, eventRows, sessions } = harness();
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+    content.lessons.clear();
+    content.items.clear();
+    await expect(service.getExercise(ACTOR, exercise.sessionPublicId, NOW)).rejects.toBeInstanceOf(
+      StudentSessionNotFoundError,
+    );
+    await expect(
+      service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW),
+    ).rejects.toBeInstanceOf(StudentSessionNotFoundError);
+    expect(eventRows.size).toBe(0);
+    expect(sessions.rows.size).toBe(1);
+  });
+  it('retains already persisted result history when course is no longer accessible', async () => {
+    const { service, content } = harness();
+    const exercise = await service.startNextExercise(ACTOR, NOW);
+    const result = await service.submitAnswer(ACTOR, exercise.sessionPublicId, TOKEN, 'i1', NOW);
+    content.lessons.clear();
+    content.items.clear();
+    expect((await service.getResult(ACTOR, exercise.sessionPublicId, NOW)).correct).toBe(
+      result.correct,
+    );
+  });
+});

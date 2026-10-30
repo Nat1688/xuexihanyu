@@ -77,6 +77,7 @@ export interface EnrolledClassView {
   enrolledAt: string;
 }
 export interface ClassAssignmentView {
+  completion?: { total: number; correct: number; completed: boolean };
   assignmentId: string;
   classId: string;
   classTitle: string;

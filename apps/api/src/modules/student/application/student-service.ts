@@ -268,7 +268,10 @@ export class StudentService {
   ): Promise<ExerciseView> {
     // Queue priority is independent of lesson position. CP-02 generates in
     // lesson order, so a one-item batch may omit the selected queue item.
-    const lessonItems = await this.deps.content.listPublishedLessonItems(candidate.lessonPublicId);
+    const lessonItems = await this.deps.content.listPublishedLessonItems(
+      candidate.lessonPublicId,
+      actor.publicId,
+    );
     if (!lessonItems?.length) throw new StudentNoContentError();
     const batch = await this.deps.exercises.generate({
       lessonPublicId: candidate.lessonPublicId,
@@ -311,6 +314,13 @@ export class StudentService {
     this.assertStudent(actor);
     const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
     if (!found) throw new StudentSessionNotFoundError();
+    if (
+      !(await this.deps.content.listPublishedLessonItems(
+        found.session.lessonPublicId,
+        actor.publicId,
+      ))
+    )
+      throw new StudentSessionNotFoundError();
     const closed = found.submission !== null || found.session.expiresAt.getTime() <= now.getTime();
     return this.toExerciseView(found.session, closed);
   }
@@ -333,6 +343,11 @@ export class StudentService {
     const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
     if (!found) throw new StudentSessionNotFoundError();
     const { session, submission } = found;
+    if (
+      !submission &&
+      !(await this.deps.content.listPublishedLessonItems(session.lessonPublicId, actor.publicId))
+    )
+      throw new StudentSessionNotFoundError();
 
     // A same-token replay is also the recovery path for an earlier partial
     // failure: complete any missing evidence/link/projection before success.
@@ -482,7 +497,7 @@ export class StudentService {
    */
   private async buildPool(actor: ActorContext, now: Date): Promise<Candidate[]> {
     const [lessons, projections] = await Promise.all([
-      this.deps.content.listPublishedLessons(),
+      this.deps.content.listPublishedLessons(actor.publicId),
       this.deps.progress.listProjections(actor.publicId),
     ]);
     const byItem = new Map(projections.map((p) => [p.learningItemPublicId, p]));
@@ -491,9 +506,12 @@ export class StudentService {
     for (const lesson of lessons) {
       const items: StudentLessonItem[] | null = await this.deps.content.listPublishedLessonItems(
         lesson.lessonPublicId,
+        actor.publicId,
       );
       if (!items) continue;
       for (const item of items) {
+        const binding = modeFieldBinding(this.deps.mode ?? 'VI_TO_ZH');
+        if (!item[binding.question]?.trim() || !item[binding.answer]?.trim()) continue;
         const projection = byItem.get(item.learningItemPublicId);
         candidates.push({
           lessonPublicId: lesson.lessonPublicId,

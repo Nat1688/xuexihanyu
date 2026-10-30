@@ -116,6 +116,7 @@ describe('session migration is additive (only adds sessions)', () => {
       'class_enrollments',
       'lesson_assignments',
       'teacher_notes',
+      'course_applications', // ENROLL-01 approved additive admissions.
     ]);
     for (const { dir, sql } of allMigrationSql()) {
       for (const table of createdTables(sql)) {
