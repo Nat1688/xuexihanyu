@@ -35,16 +35,25 @@ export function ClassCards({
   classes,
   onOpen,
   actionLabel = 'Xem lớp',
+  onCreate,
 }: {
   actionLabel?: string;
+  onCreate?: () => void;
   classes: TeacherClass[];
   onOpen: (value: TeacherClass) => void;
 }) {
   if (!classes.length)
     return (
-      <div className="tw-empty">
-        <h2>Bắt đầu với lớp học mới</h2>
-        <p>Tạo lớp để bắt đầu. Chỉ các lớp bạn quản lý mới xuất hiện ở đây.</p>
+      <div className="tw-empty tw-empty--classes">
+        <div>
+          <h3>Bắt đầu với lớp học đầu tiên</h3>
+          <p>Tạo lớp để xếp học viên, giao bài và theo dõi kết quả.</p>
+        </div>
+        {onCreate && (
+          <button className="clp-button" onClick={onCreate}>
+            Tạo lớp đầu tiên
+          </button>
+        )}
       </div>
     );
   return (

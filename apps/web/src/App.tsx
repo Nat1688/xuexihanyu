@@ -126,8 +126,15 @@ export function App() {
         {ui.app.skip}
       </a>
       <div className={step.view === 'teacher' ? 'clp-shell tw-shell' : 'clp-shell'}>
-        <header>
-          <p className="clp-muted" style={{ margin: 0 }}>
+        <header
+          className={step.view === 'teacher' && !toolsOpen ? 'clp-header--teacher' : undefined}
+          hidden={step.view === 'teacher' && !toolsOpen && !(principal && canStudy(principal))}
+        >
+          <p
+            className="clp-muted"
+            style={{ margin: 0 }}
+            hidden={step.view === 'teacher' && !toolsOpen}
+          >
             {ui.app.title}
           </p>
           {principal && canTeach(principal) && canStudy(principal) ? (

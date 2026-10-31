@@ -1,6 +1,7 @@
+import { TeacherDashboard as Dashboard } from './TeacherDashboard';
+import { TeacherNavIcon } from './TeacherNavIcon';
 import { AdmissionReviews } from '../admissions/CourseAdmissions';
 import { Curriculum } from '../curriculum/Curriculum';
-import { displayNumber } from '../ui-vi';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, studentApi, type Principal } from '../api/client';
 import { teacherApi, type TeacherClass, type RosterStudent } from '../api/teacher';
@@ -81,46 +82,54 @@ export function TeacherWorkspace({
         <div className="tw-brand">
           <span aria-hidden="true">学</span>
           <div>
-            XueXiHanyu<small>KHÔNG GIAN GIÁO VIÊN</small>
+            XueXiHanyu<small>Dạy và học tiếng Trung</small>
           </div>
         </div>
         <nav aria-label="Điều hướng giáo viên">
           <button
             className={page.view === 'dashboard' ? 'tw-nav active' : 'tw-nav'}
+            aria-current={page.view === 'dashboard' ? 'page' : undefined}
             onClick={() => navigate({ view: 'dashboard' })}
           >
-            Tổng quan <span aria-hidden="true">↗</span>
+            <TeacherNavIcon name="dashboard" />
+            <span>Tổng quan</span>
           </button>
           <button
             className={page.view === 'curriculum' ? 'tw-nav active' : 'tw-nav'}
+            aria-current={page.view === 'curriculum' ? 'page' : undefined}
             onClick={() => {
               if (navigate({ view: 'curriculum' })) setReturnClass(null);
             }}
           >
-            Khóa học & bài học <span aria-hidden="true">文</span>
+            <TeacherNavIcon name="curriculum" />
+            <span>Khóa học & bài học</span>
           </button>
           <button
             className={page.view === 'assign' ? 'tw-nav active' : 'tw-nav'}
+            aria-current={page.view === 'assign' ? 'page' : undefined}
             onClick={() => navigate({ view: 'assign' })}
           >
-            Giao bài <span aria-hidden="true">→</span>
+            <TeacherNavIcon name="assign" />
+            <span>Giao bài</span>
           </button>
           <button
             className={page.view === 'admissions' ? 'tw-nav active' : 'tw-nav'}
+            aria-current={page.view === 'admissions' ? 'page' : undefined}
             onClick={() => navigate({ view: 'admissions' })}
           >
-            Duyệt đăng ký
+            <TeacherNavIcon name="admissions" />
+            <span>Duyệt đăng ký</span>
           </button>
           {onTools ? (
             <button type="button" className="tw-nav" data-learning-tools-trigger onClick={onTools}>
-              Công cụ học tập <span aria-hidden="true">拼</span>
+              <TeacherNavIcon name="tools" />
+              <span>Công cụ học tập</span>
             </button>
           ) : null}
-          <p className="tw-fine">Đồng hành cùng từng lớp, từng học viên.</p>
         </nav>
         <div className="tw-profile">
           <strong>{principal.displayName || principal.login}</strong>
-          <small>Không gian giáo viên</small>
+          <small>{principal.roles.includes('ADMIN') ? 'Quản trị viên' : 'Giáo viên'}</small>
           <button
             className="clp-button clp-button--secondary"
             onClick={() => void logout()}
@@ -182,6 +191,8 @@ export function TeacherWorkspace({
             onAuthor={() => {
               if (navigate({ view: 'curriculum' })) setReturnClass(null);
             }}
+            onReview={() => navigate({ view: 'admissions' })}
+            onAssign={() => navigate({ view: 'assign' })}
             onBusyChange={busyChanged}
             onOpen={(klass) => setPage({ view: 'class', klass })}
           />
@@ -214,116 +225,6 @@ export function TeacherWorkspace({
         ) : null}
       </div>
     </fieldset>
-  );
-}
-
-function Dashboard({
-  onExpired,
-  onOpen,
-  onBusyChange,
-  onAuthor,
-}: {
-  onAuthor: () => void;
-  onExpired: () => void;
-  onOpen: (klass: TeacherClass) => void;
-  onBusyChange: (busy: boolean) => void;
-}) {
-  const resource = useResource(teacherApi.classes, onExpired);
-  const overview = useResource(teacherApi.overview, onExpired);
-  const [creating, setCreating] = useState(false);
-  const [notice, setNotice] = useState('');
-  return (
-    <>
-      <div className="tw-section-heading">
-        <div>
-          <p className="tw-eyebrow">Tiến bộ từng ngày</p>
-          <h1>Không gian giảng dạy</h1>
-          <p className="clp-muted">Theo dõi lớp học và hành trình học tập của từng học viên.</p>
-        </div>
-        <button className="clp-button" onClick={() => setCreating((value) => !value)}>
-          {creating ? 'Đóng biểu mẫu' : '+ Tạo lớp'}
-        </button>
-      </div>
-      <p className="clp-actions">
-        <button className="clp-button" onClick={onAuthor}>
-          + Soạn bài học
-        </button>
-        <span className="clp-muted">
-          Soạn và xuất bản bài trước, sau đó mở lớp bên dưới để giao cho học viên.
-        </span>
-      </p>
-      {notice ? (
-        <p role="status" className="tw-notice">
-          {notice}
-        </p>
-      ) : null}
-      {creating ? (
-        <CreateClassForm
-          onBusyChange={onBusyChange}
-          onExpired={onExpired}
-          onCancel={() => {
-            setCreating(false);
-            resource.refresh();
-          }}
-          onSaved={() => {
-            setCreating(false);
-            setNotice('Đã tạo lớp.');
-            resource.refresh();
-            overview.refresh();
-          }}
-        />
-      ) : null}
-      <ResourceView state={overview.state} retry={overview.refresh}>
-        {(data) => (
-          <>
-            <div className="tw-stats">
-              {(
-                [
-                  ['Khóa học của tôi', data.courses],
-                  ['Lớp học', data.classes],
-                  ['Học viên duy nhất', data.students],
-                  ['Bài học đã xuất bản', data.lessons],
-                  ['Lượt giao bài', data.assignments],
-                  ['Chưa hoàn thành', data.pending],
-                  ['Đã hoàn thành', data.completed],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label}>
-                  <span>{label}</span>
-                  <strong>{displayNumber(value)}</strong>
-                </div>
-              ))}
-            </div>
-            <p className="tw-fine">
-              Tổng số trong các lớp bạn sở hữu; lượt giao bài tính riêng từng học viên. Trạng thái
-              hoàn thành theo các mục luyện tập hiện tại.
-            </p>
-          </>
-        )}
-      </ResourceView>
-      <ResourceView state={resource.state} retry={resource.refresh}>
-        {({ classes }) => (
-          <>
-            <div className="tw-section-heading">
-              <h2>Lớp của tôi</h2>
-              <button
-                className="clp-button clp-button--secondary"
-                onClick={() => {
-                  resource.refresh();
-                  overview.refresh();
-                }}
-              >
-                Tải lại danh sách lớp
-              </button>
-            </div>
-            <ClassCards classes={classes} onOpen={onOpen} />
-            <p className="tw-fine">
-              Hiển thị tối đa 50 lớp bạn quản lý. Số lượt ghi danh không phải số học viên duy nhất.
-            </p>
-          </>
-        )}
-      </ResourceView>
-    </>
   );
 }
 

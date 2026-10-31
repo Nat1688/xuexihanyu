@@ -9,6 +9,7 @@ Giáo viên có thể tạo/chỉnh sửa khóa học và lớp, soạn bài h�
 
 Học viên có thể tham gia lớp, mở bài được giao, đọc nội dung, tiếp tục vị trí đọc sau reload, luyện tập và xem lại kết quả. Bài học hoàn thành khi mỗi mục luyện tập hiện tại đã được trả lời đúng ít nhất một lần, theo quy tắc Owner duyệt ngày 30/10/2026. Lịch sử học là dữ liệu append-oriented; mastery giữ nguyên quy tắc hiện có.
 
+- [UI-02: dashboard giáo viên dễ đọc và dễ bắt đầu hơn](docs/Review/UI-02-HANDOFF.md) — source cập nhật; cần build lại Web trên homelab.
 - [Lấy source và tiếp tục phát triển trên homelab](docs/Operations/HOMELAB-HANDOFF.md)
 - [Bàn giao ENROLL-01: đăng ký và duyệt khóa học](docs/Review/ENROLL-01-HANDOFF.md)
 - [Bàn giao TOOLS-01: Pinyin Studio và giấy tập viết AN2](docs/Review/TOOLS-01-HANDOFF.md)
