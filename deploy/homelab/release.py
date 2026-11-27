@@ -109,7 +109,7 @@ def write(root, name, data):
 
 def applied_migrations():
     out = run(['docker', 'exec', '%s-db-1' % PROJECT, 'sh', '-c',
-               'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c '
+               'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c '
                '"SET default_transaction_read_only = on; SELECT migration_name FROM _prisma_migrations '
                'WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name"'])
     return [l for l in out.decode().split('\n') if l]
