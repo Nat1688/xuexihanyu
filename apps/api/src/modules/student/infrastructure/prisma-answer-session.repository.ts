@@ -224,13 +224,17 @@ export class PrismaAnswerSessionRepository implements AnswerSessionRepository {
       ) {
         throw error;
       }
-      // Unique violation: either a same-token replay (return the stored row) or
-      // a different token racing the winner (conflict — result is final).
+      // The one-submission-per-session unique index serializes same- and
+      // different-token races. Re-read the winner: the same token is an
+      // idempotent replay; a different token means the result is already final.
       const existing = await this.prisma.answerSubmission.findFirst({
         where: { exerciseSessionId: session.id },
         select: SUBMISSION_SELECT,
       });
-      if (existing && existing.submissionToken === input.submissionToken) {
+      if (!existing) {
+        throw new StudentConflictError('Concurrent answer could not be resolved; please retry');
+      }
+      if (existing.submissionToken === input.submissionToken) {
         return toSubmissionRecord(existing);
       }
       throw new StudentAlreadyAnsweredError();
@@ -242,12 +246,15 @@ export class PrismaAnswerSessionRepository implements AnswerSessionRepository {
     token: string,
     learningEventPublicId: string,
   ): Promise<void> {
-    await this.prisma.answerSubmission.updateMany({
+    const result = await this.prisma.answerSubmission.updateMany({
       where: {
         submissionToken: token,
         exerciseSession: { publicId: sessionPublicId },
       },
       data: { learningEventPublicId },
     });
+    if (result.count !== 1) {
+      throw new StudentConflictError('Stored answer could not be linked to its learning event');
+    }
   }
 }

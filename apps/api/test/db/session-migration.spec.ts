@@ -112,9 +112,24 @@ describe('session migration is additive (only adds sessions)', () => {
       'exercise_sessions',
       'answer_submissions',
       'teaching_classes',
+      'class_invitations',
       'class_enrollments',
       'lesson_assignments',
       'teacher_notes',
+      'course_applications',
+      'dictionary_sources', // Owner-approved DICT02.
+      'dictionary_source_categories', // Owner-approved DICT02.
+      'dictionary_import_batches', // Owner-approved DICT02.
+      'dictionary_entries', // Owner-approved DICT02.
+      'dictionary_senses', // Owner-approved DICT02.
+      'dictionary_import_items', // Owner-approved DICT02.
+      'dictionary_sense_origins', // Owner-approved DICT02.
+      'dictionary_categories', // Owner-approved DICT02.
+      'dictionary_entry_categories', // Owner-approved DICT02.
+      'dictionary_entry_revisions', // Owner-approved DICT02.
+      'dictionary_entry_reports', // Owner-approved DICT02.
+      'dictionary_audit_events', // Owner-approved DICT02.
+      // ENROLL-01 approved additive admissions.
     ]);
     for (const { dir, sql } of allMigrationSql()) {
       for (const table of createdTables(sql)) {

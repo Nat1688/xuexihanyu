@@ -61,6 +61,7 @@ export const SERVER_CONFIG_KEYS: readonly string[] = [
   'SESSION_SECRET',
   'SESSION_TTL_MINUTES',
   'CSRF_SECRET',
+  'LC03B_PREVIEW_ENABLED',
 ];
 
 const KNOWN_KEY_SET: ReadonlySet<string> = new Set(SERVER_CONFIG_KEYS);
@@ -108,7 +109,7 @@ export function loadServerConfig(
   const missing: string[] = [];
   for (const key of SERVER_CONFIG_KEYS) {
     const value = raw[key];
-    if (value === undefined || value === '') missing.push(key);
+    if (key !== 'LC03B_PREVIEW_ENABLED' && (value === undefined || value === '')) missing.push(key);
   }
 
   const result = serverConfigSchema.safeParse(raw);

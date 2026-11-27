@@ -1,3 +1,4 @@
+import { CourseAccessService } from '../../admissions/course-access.service';
 /**
  * Published-content reader for the student surface (CP-05).
  *
@@ -20,11 +21,21 @@ import {
 
 @Injectable()
 export class PrismaStudentContentReader implements StudentContentReader {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: CourseAccessService,
+  ) {}
 
-  async listPublishedLessons(): Promise<StudentLesson[]> {
+  async listPublishedLessons(actorPublicId: string): Promise<StudentLesson[]> {
+    const ids = await this.access.courseIds({ publicId: actorPublicId, roles: ['STUDENT'] });
     const rows = await this.prisma.lesson.findMany({
-      where: { visibility: 'PUBLISHED' },
+      where: {
+        visibility: 'PUBLISHED',
+        unit: {
+          visibility: 'PUBLISHED',
+          course: { visibility: 'PUBLISHED', publicId: { in: ids ?? [] } },
+        },
+      },
       select: {
         publicId: true,
         title: true,
@@ -54,9 +65,20 @@ export class PrismaStudentContentReader implements StudentContentReader {
     }));
   }
 
-  async listPublishedLessonItems(lessonPublicId: string): Promise<StudentLessonItem[] | null> {
+  async listPublishedLessonItems(
+    lessonPublicId: string,
+    actorPublicId: string,
+  ): Promise<StudentLessonItem[] | null> {
+    const ids = await this.access.courseIds({ publicId: actorPublicId, roles: ['STUDENT'] });
     const lesson = await this.prisma.lesson.findFirst({
-      where: { publicId: lessonPublicId, visibility: 'PUBLISHED' },
+      where: {
+        publicId: lessonPublicId,
+        visibility: 'PUBLISHED',
+        unit: {
+          visibility: 'PUBLISHED',
+          course: { visibility: 'PUBLISHED', publicId: { in: ids ?? [] } },
+        },
+      },
       select: { id: true },
     });
     if (!lesson) return null;

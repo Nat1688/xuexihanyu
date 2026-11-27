@@ -15,7 +15,8 @@
  * Invariants:
  *   - Ownership is server-derived (`ActorContext.publicId`), never a client id.
  *   - Every submission is IDEMPOTENT on its token; re-sending the same token
- *     returns the stored result and appends NO new evidence.
+ *     returns the stored result and appends only evidence missing from a
+ *     previous partial failure.
  *   - The answer key never leaves this service before a submission is stored.
  *   - The service does not read the clock directly; callers pass `now`
  *     (providers default to `new Date()`), keeping behaviour testable.
@@ -25,6 +26,7 @@
  * unscoped cross-learner read.
  */
 import { ContentValidationError } from '../../content/domain/content-errors';
+import { createHash } from 'node:crypto';
 import {
   answerFieldOf,
   evaluateAnswer,
@@ -37,11 +39,13 @@ import {
 } from '../../exercise/domain';
 import { type ExerciseService } from '../../exercise/application/exercise-service';
 import { type LearningEventService } from '../../learning-events/application/learning-event-service';
+import { LearningEventConflictError } from '../../learning-events/domain';
 import { type MasteryService } from '../../mastery/application/mastery-service';
 import { type MasteryState } from '../../mastery/domain';
 import {
   SESSION_TTL_MINUTES,
   StudentAlreadyAnsweredError,
+  StudentConflictError,
   StudentInvalidAnswerError,
   StudentInvalidTokenError,
   StudentNoContentError,
@@ -116,11 +120,30 @@ export interface ResultView {
   readonly expected: string;
   readonly received: string;
   readonly submittedAt: Date;
+  /** Whether the durable evidence + mastery suffix completed for this response. */
+  readonly integrityStatus: 'COMPLETE' | 'RECOVERY_REQUIRED';
   readonly next: {
     readonly action: NextAction;
     readonly remaining: number;
     readonly completedToday: number;
   };
+}
+
+/** Stable UUIDv5 evidence id for one answer session (retry/concurrency key). */
+export function answerEvidencePublicId(sessionPublicId: string): string {
+  const namespace = Buffer.from('6ba7b8119dad11d180b400c04fd430c8', 'hex');
+  const digest = createHash('sha1')
+    .update(namespace)
+    .update(`xuexihanyu:answer-submitted:${sessionPublicId}`, 'utf8')
+    .digest()
+    .subarray(0, 16);
+  digest[6] = (digest[6] & 0x0f) | 0x50;
+  digest[8] = (digest[8] & 0x3f) | 0x80;
+  const hex = digest.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(
+    16,
+    20,
+  )}-${hex.slice(20)}`;
 }
 
 /** Dependencies (injectable; no Nest decorators so unit tests stay trivial). */
@@ -216,11 +239,45 @@ export class StudentService {
     const candidate = pickExerciseItem(pool.slice(0, goal), completedToday);
     if (!candidate) throw new StudentNoContentError();
 
+    return this.issueCandidate(actor, candidate, now);
+  }
+
+  /** CL-01: caller authorizes the assignment; this boundary still requires published content. */
+  async startLessonExercise(
+    actor: ActorContext,
+    lessonPublicId: string,
+    now: Date,
+  ): Promise<ExerciseView> {
+    this.assertStudent(actor);
+    const pool = (await this.buildPool(actor, now)).filter(
+      (row) => row.lessonPublicId === lessonPublicId,
+    );
+    const count = await this.deps.progress.countSubmissionsSince(
+      actor.publicId,
+      startOfUtcDay(now),
+    );
+    const candidate = pickExerciseItem(pool, count);
+    if (!candidate) throw new StudentNoContentError();
+    return this.issueCandidate(actor, candidate, now);
+  }
+
+  private async issueCandidate(
+    actor: ActorContext,
+    candidate: Candidate,
+    now: Date,
+  ): Promise<ExerciseView> {
+    // Queue priority is independent of lesson position. CP-02 generates in
+    // lesson order, so a one-item batch may omit the selected queue item.
+    const lessonItems = await this.deps.content.listPublishedLessonItems(
+      candidate.lessonPublicId,
+      actor.publicId,
+    );
+    if (!lessonItems?.length) throw new StudentNoContentError();
     const batch = await this.deps.exercises.generate({
       lessonPublicId: candidate.lessonPublicId,
       mode: this.deps.mode ?? 'VI_TO_ZH',
       format: this.deps.format ?? 'TYPING',
-      limit: 1,
+      limit: lessonItems.length,
       distractors: this.deps.distractors ?? 3,
       seed: candidate.itemPublicId,
     });
@@ -257,6 +314,13 @@ export class StudentService {
     this.assertStudent(actor);
     const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
     if (!found) throw new StudentSessionNotFoundError();
+    if (
+      !(await this.deps.content.listPublishedLessonItems(
+        found.session.lessonPublicId,
+        actor.publicId,
+      ))
+    )
+      throw new StudentSessionNotFoundError();
     const closed = found.submission !== null || found.session.expiresAt.getTime() <= now.getTime();
     return this.toExerciseView(found.session, closed);
   }
@@ -279,10 +343,17 @@ export class StudentService {
     const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
     if (!found) throw new StudentSessionNotFoundError();
     const { session, submission } = found;
+    if (
+      !submission &&
+      !(await this.deps.content.listPublishedLessonItems(session.lessonPublicId, actor.publicId))
+    )
+      throw new StudentSessionNotFoundError();
 
-    // Idempotent replay of the SAME token: same result, NO new evidence.
+    // A same-token replay is also the recovery path for an earlier partial
+    // failure: complete any missing evidence/link/projection before success.
     if (submission && submission.submissionToken === submissionToken) {
-      return this.toResultView(session, submission, await this.computeNext(actor, now));
+      const completed = await this.ensureSubmissionComplete(actor, session, submission, now);
+      return this.toResultView(session, completed, await this.computeNext(actor, now), 'COMPLETE');
     }
     if (submission) throw new StudentAlreadyAnsweredError();
 
@@ -321,33 +392,10 @@ export class StudentService {
       learningEventPublicId: null,
     });
 
-    // CP-03 evidence (append-only), then CP-04 re-derive for this actor only.
-    try {
-      const event = await this.deps.events.record({
-        type: 'ANSWER_SUBMITTED',
-        actorPublicId: actor.publicId,
-        occurredAt: now,
-        lessonPublicId: session.lessonPublicId,
-        learningItemPublicId: session.learningItemPublicId,
-        exerciseRef: session.publicId,
-        metadata: { outcome: verdict.correct ? 'correct' : 'incorrect' },
-      });
-      await this.deps.sessions.linkEvent(session.publicId, submissionToken, event.publicId);
-    } catch {
-      // Evidence failure must not lose the learner's answer: the submission is
-      // already durable and a replay re-reads it. Nothing is logged here (the
-      // answer key must never reach a log line).
-    }
-
-    try {
-      await this.deps.mastery.deriveForActor(actor.publicId, now);
-    } catch {
-      // Projections are DERIVED and replaceable: a failure degrades TODAY
-      // ordering until the next successful derive; it never loses evidence.
-    }
+    const completed = await this.ensureSubmissionComplete(actor, session, stored, now);
 
     const next = await this.computeNext(actor, now);
-    return this.toResultView(session, stored, next);
+    return this.toResultView(session, completed, next, 'COMPLETE');
   }
 
   /** Re-read a RESULT (stable across reloads; owner-only). */
@@ -355,10 +403,93 @@ export class StudentService {
     this.assertStudent(actor);
     const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
     if (!found || !found.submission) throw new StudentSessionNotFoundError();
-    return this.toResultView(found.session, found.submission, await this.computeNext(actor, now));
+    // A read cannot prove that a prior mastery write completed without adding
+    // new durable state. Be conservative: expose the stored verdict, but never
+    // claim the submission pipeline is synchronized. The explicit POST repair
+    // path returns COMPLETE only after derivation succeeds.
+    return this.toResultView(
+      found.session,
+      found.submission,
+      await this.computeNext(actor, now),
+      'RECOVERY_REQUIRED',
+    );
+  }
+
+  /**
+   * Explicit, authenticated recovery for a previously persisted submission.
+   * No token or answer is accepted: recovery can only replay the stored verdict
+   * and timestamp through the idempotent evidence/mastery suffix.
+   */
+  async recoverResult(
+    actor: ActorContext,
+    sessionPublicId: string,
+    now: Date,
+  ): Promise<ResultView> {
+    this.assertStudent(actor);
+    const found = await this.deps.sessions.findWithSubmission(sessionPublicId, actor.publicId);
+    if (!found || !found.submission) throw new StudentSessionNotFoundError();
+    const completed = await this.ensureSubmissionComplete(
+      actor,
+      found.session,
+      found.submission,
+      now,
+    );
+    return this.toResultView(
+      found.session,
+      completed,
+      await this.computeNext(actor, now),
+      'COMPLETE',
+    );
   }
 
   // --- helpers -----------------------------------------------------------
+
+  /**
+   * Complete the durable submission -> evidence -> projection pipeline.
+   *
+   * The event public id is deterministic per session, so concurrent retries
+   * converge on one append through CP-03's unique public-id constraint. The
+   * original submission timestamp and stored verdict are used on every retry,
+   * making the append payload stable. Any failure is surfaced to the caller;
+   * the same token or explicit recovery request safely retries the missing suffix.
+   */
+  private async ensureSubmissionComplete(
+    actor: ActorContext,
+    session: AnswerSessionRecord,
+    submission: AnswerSubmissionRecord,
+    now: Date,
+  ): Promise<AnswerSubmissionRecord> {
+    let completed = submission;
+    if (!submission.learningEventPublicId) {
+      let event;
+      try {
+        event = await this.deps.events.record({
+          publicId: answerEvidencePublicId(session.publicId),
+          type: 'ANSWER_SUBMITTED',
+          actorPublicId: actor.publicId,
+          occurredAt: submission.createdAt,
+          lessonPublicId: session.lessonPublicId,
+          learningItemPublicId: session.learningItemPublicId,
+          exerciseRef: session.publicId,
+          metadata: { outcome: submission.correct ? 'correct' : 'incorrect' },
+        });
+      } catch (error) {
+        if (error instanceof LearningEventConflictError) {
+          throw new StudentConflictError('Stored learning evidence conflicts with this result');
+        }
+        throw error;
+      }
+      await this.deps.sessions.linkEvent(
+        session.publicId,
+        submission.submissionToken,
+        event.publicId,
+      );
+      completed = { ...submission, learningEventPublicId: event.publicId };
+    }
+
+    await this.deps.mastery.deriveForActor(actor.publicId, now);
+    return completed;
+  }
 
   /**
    * Build the deterministic candidate pool: due items first, then never-seen
@@ -366,7 +497,7 @@ export class StudentService {
    */
   private async buildPool(actor: ActorContext, now: Date): Promise<Candidate[]> {
     const [lessons, projections] = await Promise.all([
-      this.deps.content.listPublishedLessons(),
+      this.deps.content.listPublishedLessons(actor.publicId),
       this.deps.progress.listProjections(actor.publicId),
     ]);
     const byItem = new Map(projections.map((p) => [p.learningItemPublicId, p]));
@@ -375,9 +506,12 @@ export class StudentService {
     for (const lesson of lessons) {
       const items: StudentLessonItem[] | null = await this.deps.content.listPublishedLessonItems(
         lesson.lessonPublicId,
+        actor.publicId,
       );
       if (!items) continue;
       for (const item of items) {
+        const binding = modeFieldBinding(this.deps.mode ?? 'VI_TO_ZH');
+        if (!item[binding.question]?.trim() || !item[binding.answer]?.trim()) continue;
         const projection = byItem.get(item.learningItemPublicId);
         candidates.push({
           lessonPublicId: lesson.lessonPublicId,
@@ -453,6 +587,7 @@ export class StudentService {
     session: AnswerSessionRecord,
     submission: AnswerSubmissionRecord,
     next: ResultView['next'],
+    integrityStatus: ResultView['integrityStatus'],
   ): ResultView {
     return {
       sessionPublicId: session.publicId,
@@ -461,6 +596,7 @@ export class StudentService {
       expected: submission.expected,
       received: submission.received,
       submittedAt: submission.createdAt,
+      integrityStatus,
       next,
     };
   }

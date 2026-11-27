@@ -1,0 +1,90 @@
+.curriculum-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+.curriculum-tag {
+  color: var(--clp-accent);
+  background: #e9f3ef;
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.lesson-reading {
+  max-width: 780px;
+  margin: 32px auto;
+}
+.lesson-reading h1 {
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  letter-spacing: -0.035em;
+}
+.lesson-intro,
+.lesson-meaning,
+.lesson-example {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lesson-intro {
+  font-size: 1.1rem;
+  line-height: 1.9;
+  color: var(--clp-muted);
+}
+.lesson-block {
+  border: 1px solid var(--clp-border);
+  border-radius: 18px;
+  background: var(--clp-surface);
+  margin: 20px 0;
+  padding: clamp(18px, 4vw, 32px);
+}
+.lesson-block h2 {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 2rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.lesson-pinyin {
+  color: #a46536;
+  font-size: 1.2rem;
+  letter-spacing: 0.03em;
+}
+.lesson-example {
+  border-left: 3px solid var(--clp-accent);
+  padding-left: 16px;
+}
+.lesson-block img,
+.lesson-block audio {
+  max-width: 100%;
+  border-radius: 10px;
+}
+.lesson-block img {
+  display: block;
+  max-height: 460px;
+  object-fit: contain;
+}
+.student-workspace {
+  max-width: 1000px;
+  margin: auto;
+}
+.student-workspace > nav {
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--clp-surface);
+  border: 1px solid var(--clp-border);
+  margin-bottom: 30px;
+}
+.student-workspace button[aria-pressed='true'] {
+  background: var(--clp-accent);
+  color: white;
+  border-color: var(--clp-accent);
+}
+@media (max-width: 600px) {
+  .lesson-reading {
+    margin: 20px 0;
+  }
+  .student-workspace > nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

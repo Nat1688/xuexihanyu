@@ -75,13 +75,17 @@ enum UserRole {
 //   - `state`      PENDING | ACTIVE | DISABLED.
 // ---------------------------------------------------------------------------
 model User {
-  id              String       @id @default(uuid()) @db.Uuid
-  publicId        String       @unique @default(uuid()) @map("public_id") @db.Uuid
-  login           String       @db.VarChar(320)
-  loginNormalized String       @unique @map("login_normalized") @db.VarChar(320)
-  state           AccountState @default(PENDING)
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dictionaryImportBatchactorId    DictionaryImportBatch[]   @relation("DictionaryImportBatch_actorId")
+  dictionaryEntryRevisionactorId  DictionaryEntryRevision[] @relation("DictionaryEntryRevision_actorId")
+  dictionaryEntryReportreporterId DictionaryEntryReport[]   @relation("DictionaryEntryReport_reporterId")
+  dictionaryAuditEventactorId     DictionaryAuditEvent[]    @relation("DictionaryAuditEvent_actorId")
+  id                              String                    @id @default(uuid()) @db.Uuid
+  publicId                        String                    @unique @default(uuid()) @map("public_id") @db.Uuid
+  login                           String                    @db.VarChar(320)
+  loginNormalized                 String                    @unique @map("login_normalized") @db.VarChar(320)
+  state                           AccountState              @default(PENDING)
+  createdAt                       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                       DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   credential           PasswordCredential?
   roles                UserRoleAssignment[]
@@ -96,6 +100,9 @@ model User {
   lessonAssignments    LessonAssignment[]   @relation("LessonAssignments")
   authoredTeacherNotes TeacherNote[]        @relation("AuthoredTeacherNotes")
   studentTeacherNotes  TeacherNote[]        @relation("StudentTeacherNotes")
+
+  courseApplications   CourseApplication[] @relation("Applicant")
+  reviewedApplications CourseApplication[] @relation("Reviewer")
 
   @@map("users")
 }
@@ -215,9 +222,10 @@ model Course {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  author User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  units  Unit[]
-  events LearningEvent[]
+  author       User                @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  units        Unit[]
+  events       LearningEvent[]
+  applications CourseApplication[]
 
   @@index([position])
   @@index([visibility])
@@ -537,7 +545,7 @@ model AnswerSession {
 // ---------------------------------------------------------------------------
 model AnswerSubmission {
   id                    String   @id @default(uuid()) @db.Uuid
-  exerciseSessionId     String   @map("exercise_session_id") @db.Uuid
+  exerciseSessionId     String   @unique @map("exercise_session_id") @db.Uuid
   submissionToken       String   @map("submission_token") @db.VarChar(80)
   submittedAnswer       String   @map("submitted_answer") @db.Text
   correct               Boolean
@@ -549,6 +557,8 @@ model AnswerSubmission {
 
   exerciseSession AnswerSession @relation(fields: [exerciseSessionId], references: [id], onDelete: Cascade)
 
+  // Retained for the explicit same-token idempotency contract. The single-column
+  // unique above is the stronger invariant: one effective submission/session.
   @@unique([exerciseSessionId, submissionToken])
   @@index([exerciseSessionId])
   @@map("answer_submissions")
@@ -583,13 +593,30 @@ model TeachingClass {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner       User               @relation("TaughtClasses", fields: [ownerId], references: [id], onDelete: Restrict)
-  enrollments ClassEnrollment[]
-  assignments LessonAssignment[]
-  notes       TeacherNote[]
+  owner        User                @relation("TaughtClasses", fields: [ownerId], references: [id], onDelete: Restrict)
+  enrollments  ClassEnrollment[]
+  assignments  LessonAssignment[]
+  notes        TeacherNote[]
+  invitation   ClassInvitation?
+  applications CourseApplication[]
 
   @@index([ownerId, createdAt])
   @@map("teaching_classes")
+}
+
+// CL-01: only a digest is persisted; rotation replaces the current invitation.
+model ClassInvitation {
+  id        String    @id @default(uuid()) @db.Uuid
+  classId   String    @unique @map("class_id") @db.Uuid
+  codeHash  String    @unique @map("code_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class TeachingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("class_invitations")
 }
 
 model ClassEnrollment {
@@ -644,4 +671,259 @@ model TeacherNote {
 
   @@index([authorId, classId, studentId, createdAt])
   @@map("teacher_notes")
+}
+
+// ENROLL-01: decisions are retained; terminal applications are never edited.
+enum CourseApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model CourseApplication {
+  id         String                  @id @default(uuid()) @db.Uuid
+  publicId   String                  @unique @default(uuid()) @map("public_id") @db.Uuid
+  studentId  String                  @map("student_id") @db.Uuid
+  courseId   String                  @map("course_id") @db.Uuid
+  status     CourseApplicationStatus @default(PENDING)
+  createdAt  DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  decidedAt  DateTime?               @map("decided_at") @db.Timestamptz(6)
+  reviewerId String?                 @map("reviewer_id") @db.Uuid
+  classId    String?                 @map("class_id") @db.Uuid
+  reason     String?                 @db.VarChar(500)
+  student    User                    @relation("Applicant", fields: [studentId], references: [id], onDelete: Restrict)
+  reviewer   User?                   @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  course     Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  class      TeachingClass?          @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, createdAt])
+  @@index([courseId, status, createdAt])
+  @@map("course_applications")
+}
+
+// DICT02: Owner-approved additive dictionary foundation.
+model DictionarySource {
+  id                               String                     @id @default(uuid()) @db.Uuid
+  publicId                         String                     @unique @default(uuid()) @map("public_id") @db.Uuid
+  label                            String
+  url                              String                     @unique
+  rights                           String                     @default("UNKNOWN")
+  rightsEvidence                   String?                    @map("rights_evidence")
+  revision                         Int                        @default(1)
+  createdAt                        DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                        DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dictionarySourceCategorysourceId DictionarySourceCategory[] @relation("DictionarySourceCategory_sourceId")
+
+  @@map("dictionary_sources")
+}
+
+model DictionarySourceCategory {
+  id                                    String                  @id @default(uuid()) @db.Uuid
+  publicId                              String                  @unique @default(uuid()) @map("public_id") @db.Uuid
+  sourceId                              String                  @map("source_id") @db.Uuid
+  label                                 String
+  position                              Int
+  createdAt                             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourceIdRelation                      DictionarySource        @relation("DictionarySourceCategory_sourceId", fields: [sourceId], references: [id], onDelete: Restrict)
+  dictionarySenseOriginsourceCategoryId DictionarySenseOrigin[] @relation("DictionarySenseOrigin_sourceCategoryId")
+
+  @@unique([sourceId, label])
+  @@map("dictionary_source_categories")
+}
+
+model DictionaryImportBatch {
+  id                          String                 @id @default(uuid()) @db.Uuid
+  publicId                    String                 @unique @default(uuid()) @map("public_id") @db.Uuid
+  filename                    String
+  checksum                    String
+  parserVersion               String                 @map("parser_version")
+  normalizerVersion           String                 @map("normalizer_version")
+  status                      String                 @default("STAGED")
+  summary                     Json
+  actorId                     String                 @map("actor_id") @db.Uuid
+  createdAt                   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  actorIdRelation             User                   @relation("DictionaryImportBatch_actorId", fields: [actorId], references: [id], onDelete: Restrict)
+  dictionaryImportItembatchId DictionaryImportItem[] @relation("DictionaryImportItem_batchId")
+
+  @@unique([checksum, parserVersion, normalizerVersion])
+  @@map("dictionary_import_batches")
+}
+
+model DictionaryEntry {
+  id                             String                    @id @default(uuid()) @db.Uuid
+  publicId                       String                    @unique @default(uuid()) @map("public_id") @db.Uuid
+  chinese                        String
+  pinyin                         String
+  identityHash                   String                    @unique @map("identity_hash")
+  pinyinKey                      String                    @map("pinyin_key")
+  pinyinCompact                  String                    @map("pinyin_compact")
+  pinyinAlias                    String                    @map("pinyin_alias")
+  contentType                    String                    @default("UNCLASSIFIED") @map("content_type")
+  verification                   String                    @default("UNVERIFIED")
+  publication                    String                    @default("INTERNAL")
+  revision                       Int                       @default(1)
+  createdAt                      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dictionarySenseentryId         DictionarySense[]         @relation("DictionarySense_entryId")
+  dictionaryEntryCategoryentryId DictionaryEntryCategory[] @relation("DictionaryEntryCategory_entryId")
+  dictionaryEntryRevisionentryId DictionaryEntryRevision[] @relation("DictionaryEntryRevision_entryId")
+  dictionaryEntryReportentryId   DictionaryEntryReport[]   @relation("DictionaryEntryReport_entryId")
+
+  @@index([chinese])
+  @@index([pinyinCompact])
+  @@index([publication, verification])
+  @@index([pinyinAlias], map: "dictionary_pinyin_alias_idx")
+  @@index([chinese(ops: raw("gin_trgm_ops"))], type: Gin, map: "dictionary_chinese_trgm")
+  @@index([pinyinCompact(ops: raw("gin_trgm_ops"))], type: Gin, map: "dictionary_pinyin_trgm")
+  @@index([chinese(ops: raw("text_pattern_ops"))], map: "dictionary_zh_prefix")
+  @@index([pinyinKey(ops: raw("text_pattern_ops"))], map: "dictionary_py_prefix")
+  @@map("dictionary_entries")
+  @@index([updatedAt], map: "dictionary_catalog_version_idx")
+}
+
+model DictionarySense {
+  id                           String                  @id @default(uuid()) @db.Uuid
+  publicId                     String                  @unique @default(uuid()) @map("public_id") @db.Uuid
+  entryId                      String                  @map("entry_id") @db.Uuid
+  vietnamese                   String?
+  english                      String?
+  identityHash                 String                  @unique @map("identity_hash")
+  vietnameseKey                String                  @map("vietnamese_key")
+  englishKey                   String                  @map("english_key")
+  createdAt                    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  entryIdRelation              DictionaryEntry         @relation("DictionarySense_entryId", fields: [entryId], references: [id], onDelete: Restrict)
+  dictionaryImportItemsenseId  DictionaryImportItem[]  @relation("DictionaryImportItem_senseId")
+  dictionarySenseOriginsenseId DictionarySenseOrigin[] @relation("DictionarySenseOrigin_senseId")
+
+  @@index([entryId])
+  @@index([entryId, publicId])
+  @@index([vietnameseKey(ops: raw("gin_trgm_ops"))], type: Gin, map: "dictionary_vi_trgm")
+  @@index([englishKey(ops: raw("gin_trgm_ops"))], type: Gin, map: "dictionary_en_trgm")
+  @@index([vietnameseKey(ops: raw("text_pattern_ops"))], map: "dictionary_vi_prefix")
+  @@index([englishKey(ops: raw("text_pattern_ops"))], map: "dictionary_en_prefix")
+  @@map("dictionary_senses")
+}
+
+model DictionaryImportItem {
+  id                                String                  @id @default(uuid()) @db.Uuid
+  publicId                          String                  @unique @default(uuid()) @map("public_id") @db.Uuid
+  batchId                           String                  @map("batch_id") @db.Uuid
+  ordinal                           Int
+  raw                               Json
+  flags                             Json
+  outcome                           String
+  senseId                           String?                 @map("sense_id") @db.Uuid
+  createdAt                         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  batchIdRelation                   DictionaryImportBatch   @relation("DictionaryImportItem_batchId", fields: [batchId], references: [id], onDelete: Restrict)
+  senseIdRelation                   DictionarySense?        @relation("DictionaryImportItem_senseId", fields: [senseId], references: [id], onDelete: Restrict)
+  dictionarySenseOriginimportItemId DictionarySenseOrigin[] @relation("DictionarySenseOrigin_importItemId")
+
+  @@unique([batchId, ordinal])
+  @@map("dictionary_import_items")
+}
+
+model DictionarySenseOrigin {
+  id                       String                   @id @default(uuid()) @db.Uuid
+  publicId                 String                   @unique @default(uuid()) @map("public_id") @db.Uuid
+  senseId                  String                   @map("sense_id") @db.Uuid
+  sourceCategoryId         String                   @map("source_category_id") @db.Uuid
+  importItemId             String                   @map("import_item_id") @db.Uuid
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  senseIdRelation          DictionarySense          @relation("DictionarySenseOrigin_senseId", fields: [senseId], references: [id], onDelete: Restrict)
+  sourceCategoryIdRelation DictionarySourceCategory @relation("DictionarySenseOrigin_sourceCategoryId", fields: [sourceCategoryId], references: [id], onDelete: Restrict)
+  importItemIdRelation     DictionaryImportItem     @relation("DictionarySenseOrigin_importItemId", fields: [importItemId], references: [id], onDelete: Restrict)
+
+  @@unique([senseId, sourceCategoryId, importItemId])
+  @@index([sourceCategoryId, senseId])
+  @@map("dictionary_sense_origins")
+}
+
+model DictionaryCategory {
+  id                                String                    @id @default(uuid()) @db.Uuid
+  publicId                          String                    @unique @default(uuid()) @map("public_id") @db.Uuid
+  parentId                          String?                   @map("parent_id") @db.Uuid
+  slug                              String                    @unique
+  label                             String
+  chineseLabel                      String?                   @map("chinese_label")
+  position                          Int                       @default(0)
+  active                            Boolean                   @default(true)
+  revision                          Int                       @default(1)
+  createdAt                         DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                         DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parentIdRelation                  DictionaryCategory?       @relation("DictionaryCategory_parentId", fields: [parentId], references: [id], onDelete: Restrict)
+  dictionaryCategoryparentId        DictionaryCategory[]      @relation("DictionaryCategory_parentId")
+  dictionaryEntryCategorycategoryId DictionaryEntryCategory[] @relation("DictionaryEntryCategory_categoryId")
+
+  @@index([parentId])
+  @@map("dictionary_categories")
+}
+
+model DictionaryEntryCategory {
+  id                 String             @id @default(uuid()) @db.Uuid
+  publicId           String             @unique @default(uuid()) @map("public_id") @db.Uuid
+  entryId            String             @map("entry_id") @db.Uuid
+  categoryId         String             @map("category_id") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  entryIdRelation    DictionaryEntry    @relation("DictionaryEntryCategory_entryId", fields: [entryId], references: [id], onDelete: Restrict)
+  categoryIdRelation DictionaryCategory @relation("DictionaryEntryCategory_categoryId", fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([entryId, categoryId])
+  @@index([categoryId, entryId])
+  @@map("dictionary_entry_categories")
+}
+
+model DictionaryEntryRevision {
+  id              String          @id @default(uuid()) @db.Uuid
+  publicId        String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  entryId         String          @map("entry_id") @db.Uuid
+  revision        Int
+  snapshot        Json
+  reason          String
+  actorId         String          @map("actor_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  entryIdRelation DictionaryEntry @relation("DictionaryEntryRevision_entryId", fields: [entryId], references: [id], onDelete: Restrict)
+  actorIdRelation User            @relation("DictionaryEntryRevision_actorId", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([entryId, revision])
+  @@map("dictionary_entry_revisions")
+}
+
+model DictionaryEntryReport {
+  id                 String          @id @default(uuid()) @db.Uuid
+  publicId           String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  entryId            String          @map("entry_id") @db.Uuid
+  revision           Int
+  reporterId         String          @map("reporter_id") @db.Uuid
+  comment            String
+  status             String          @default("OPEN")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  entryIdRelation    DictionaryEntry @relation("DictionaryEntryReport_entryId", fields: [entryId], references: [id], onDelete: Restrict)
+  reporterIdRelation User            @relation("DictionaryEntryReport_reporterId", fields: [reporterId], references: [id], onDelete: Restrict)
+
+  @@index([entryId])
+  @@map("dictionary_entry_reports")
+}
+
+model DictionaryAuditEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  publicId        String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  actorId         String   @map("actor_id") @db.Uuid
+  action          String
+  target          String
+  metadata        Json
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  actorIdRelation User     @relation("DictionaryAuditEvent_actorId", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt])
+  @@map("dictionary_audit_events")
 }

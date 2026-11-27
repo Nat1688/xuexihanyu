@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { MasteryService } from './application/mastery-service';
 import { MASTERY_EVENT_READER, MASTERY_PROJECTION_REPOSITORY } from './application/tokens';
+import { PrismaMasteryDerivationLock } from './infrastructure/prisma-mastery-derivation.lock';
 import { PrismaMasteryEventReader } from './infrastructure/prisma-mastery-event.reader';
 import { PrismaMasteryProjectionRepository } from './infrastructure/prisma-mastery-projection.repository';
 
@@ -16,7 +17,7 @@ import { PrismaMasteryProjectionRepository } from './infrastructure/prisma-maste
  *                        (`deriveProjection`/`applyEvent`) and typed errors.
  *   - `application/`      the READ-ONLY `MasteryEventReader` port, the
  *                        `MasteryProjectionRepository` (replaceable) port,
- *                        `MasteryService` use-cases (incremental `deriveForActor`,
+ *                        `MasteryService` use-cases (safe `deriveForActor`,
  *                        actor-scoped `replay`, full `rebuild`) and DI tokens.
  *   - `infrastructure/`   Prisma-backed read-only event reader + replaceable
  *                        projection repository over `mastery_projections`.
@@ -40,13 +41,15 @@ import { PrismaMasteryProjectionRepository } from './infrastructure/prisma-maste
       provide: MASTERY_PROJECTION_REPOSITORY,
       useClass: PrismaMasteryProjectionRepository,
     },
+    PrismaMasteryDerivationLock,
     {
       provide: MasteryService,
       useFactory: (
         events: PrismaMasteryEventReader,
         projections: PrismaMasteryProjectionRepository,
-      ) => new MasteryService({ events, projections }),
-      inject: [MASTERY_EVENT_READER, MASTERY_PROJECTION_REPOSITORY],
+        lock: PrismaMasteryDerivationLock,
+      ) => new MasteryService({ events, projections, lock }),
+      inject: [MASTERY_EVENT_READER, MASTERY_PROJECTION_REPOSITORY, PrismaMasteryDerivationLock],
     },
   ],
   exports: [MasteryService],

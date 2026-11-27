@@ -1,3 +1,4 @@
+import { AdmissionsModule } from '../admissions/admissions.module';
 /**
  * Student module (CP-05).
  *
@@ -51,7 +52,14 @@ import {
 } from './student.tokens';
 
 @Module({
-  imports: [PrismaModule, IdentityModule, ExerciseModule, LearningEventsModule, MasteryModule],
+  imports: [
+    AdmissionsModule,
+    PrismaModule,
+    IdentityModule,
+    ExerciseModule,
+    LearningEventsModule,
+    MasteryModule,
+  ],
   controllers: [StudentController],
   providers: [
     PrismaStudentContentReader,

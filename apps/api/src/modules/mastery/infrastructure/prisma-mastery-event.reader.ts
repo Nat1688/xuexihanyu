@@ -11,7 +11,7 @@
  * leaves this layer. Reads are ordered `(occurredAt, id)` — the same total order
  * the CP-03 contract uses — so replay/rebuild is reproducible.
  */
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../foundation/prisma.service';
 import {
@@ -21,6 +21,7 @@ import {
   type StoredLearningEvent,
 } from '../../learning-events/domain';
 import { type MasteryEventReader } from '../application/mastery-event-reader';
+import { type MasteryPrismaClient } from './prisma-mastery-client';
 
 interface EventRow {
   publicId: string;
@@ -89,7 +90,7 @@ function toStored(row: ResolvedRow): StoredLearningEvent {
 
 @Injectable()
 export class PrismaMasteryEventReader implements MasteryEventReader {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: MasteryPrismaClient) {}
 
   private async withRefs(row: EventRow): Promise<ResolvedRow> {
     const [actor, course, unit, lesson, learningItem] = await Promise.all([

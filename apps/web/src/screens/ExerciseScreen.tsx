@@ -1,3 +1,4 @@
+import { StudentReturn } from '../StudentReturn';
 /**
  * EXERCISE screen (CP-05).
  *
@@ -8,12 +9,24 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { exerciseMode, studentError } from '../ui-vi';
 import { ApiError, studentApi, type ExerciseView, type ResultView } from '../api/client';
+import { loadRememberedExercise, submitRememberedExercise } from '../exercise-resume';
 
 export interface ExerciseScreenProps {
   sessionId: string;
   onResult: (result: ResultView) => void;
   onExpired: () => void;
+  onUnavailable?: () => void;
+  onLeave?: () => void;
+  onBusyChange?: (busy: boolean) => void;
+  draft?: ExerciseDraft;
+}
+
+/** In-memory only. Never serialize this to browser storage. */
+export interface ExerciseDraft {
+  answer?: string;
+  submissionToken?: string;
 }
 
 function newSubmissionToken(): string {
@@ -23,36 +36,62 @@ function newSubmissionToken(): string {
   return `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScreenProps) {
+export function ExerciseScreen({
+  sessionId,
+  onResult,
+  onExpired,
+  onUnavailable,
+  onLeave,
+  onBusyChange,
+  draft,
+}: ExerciseScreenProps) {
   const [exercise, setExercise] = useState<ExerciseView | null>(null);
-  const [answer, setAnswer] = useState('');
+  const [answer, setAnswer] = useState(draft?.answer ?? '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const tokenRef = useRef<string>(newSubmissionToken());
+  const tokenRef = useRef<string>(draft?.submissionToken ?? newSubmissionToken());
   const inFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    if (draft) draft.submissionToken = tokenRef.current;
+    return () => {
+      mounted.current = false;
+      onBusyChange?.(false);
+    };
+  }, [draft, onBusyChange]);
+  function changeAnswer(value: string) {
+    setAnswer(value);
+    if (draft) draft.answer = value;
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const view = await studentApi.exercise(sessionId);
-      setExercise(view);
-      if (view.alreadyAnswered) {
-        // Reloading an already-answered exercise goes straight to its RESULT.
-        const result = await studentApi.result(sessionId);
+      const loaded = await loadRememberedExercise(studentApi, sessionStorage, sessionId);
+      if (!mounted.current) return;
+      setExercise(loaded.exercise);
+      if (loaded.result) {
+        const result = loaded.result;
         onResult(result);
       }
     } catch (err) {
+      if (!mounted.current) return;
+      if (err instanceof ApiError && err.status === 410 && onUnavailable) {
+        onUnavailable();
+        return;
+      }
       if (err instanceof ApiError && (err.status === 401 || err.status === 410)) {
         onExpired();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Unable to load this exercise.');
+      setError(studentError(err, 'Không thể tải bài tập. Vui lòng thử lại.'));
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
-  }, [sessionId, onResult, onExpired]);
+  }, [sessionId, onResult, onExpired, onUnavailable]);
 
   useEffect(() => {
     void load();
@@ -61,33 +100,69 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
   async function submit() {
     if (inFlight.current || !answer.trim()) return;
     inFlight.current = true;
+    onBusyChange?.(true);
     setSubmitting(true);
     setError(null);
     try {
-      const result = await studentApi.answer(sessionId, tokenRef.current, answer);
+      const result = await submitRememberedExercise(
+        studentApi,
+        sessionStorage,
+        sessionId,
+        tokenRef.current,
+        answer,
+      );
       onResult(result);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 410 && onUnavailable) {
+        onUnavailable();
+        return;
+      }
       if (err instanceof ApiError && (err.status === 401 || err.status === 410)) {
         onExpired();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Unable to submit your answer.');
+      setError(
+        studentError(
+          err,
+          'Chưa xác nhận được kết quả nộp bài. Hãy thử lại hoặc tải lại để khôi phục.',
+        ),
+      );
     } finally {
       setSubmitting(false);
       inFlight.current = false;
+      onBusyChange?.(false);
     }
   }
 
   return (
     <section aria-labelledby="exercise-heading" className="clp-card">
-      <h1 id="exercise-heading">Exercise</h1>
+      {onLeave ? (
+        <div className="ink-exercise-navigation">
+          <StudentReturn
+            disabled={submitting}
+            onClick={() => {
+              if (!inFlight.current) onLeave();
+            }}
+          />
+          <p className="clp-muted">
+            Bạn có thể quay lại bài đang làm. Bản nháp chỉ giữ trong tab này, không giữ khi tải lại
+            trang hoặc đăng xuất.
+          </p>
+        </div>
+      ) : null}
+      <h1 id="exercise-heading">Bài tập</h1>
 
-      {loading ? <p role="status">Loading exercise…</p> : null}
+      {loading ? <p role="status">Đang tải bài tập…</p> : null}
 
       {error ? (
         <p className="clp-error" role="alert">
           {error}
         </p>
+      ) : null}
+      {!loading && !exercise && error ? (
+        <button className="clp-button" onClick={() => void load()}>
+          Thử tải lại bài tập
+        </button>
       ) : null}
 
       {exercise && !exercise.alreadyAnswered ? (
@@ -98,16 +173,27 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
           }}
         >
           <p className="clp-muted">
-            <span className="clp-badge">{exercise.mode}</span>{' '}
-            <span className="clp-badge">{exercise.format.toLowerCase()}</span>
+            <span className="clp-badge">{exerciseMode(exercise.mode)}</span>{' '}
+            <span className="clp-badge">
+              {exercise.format === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm' : 'Nhập đáp án'}
+            </span>
           </p>
-          <p className="clp-prompt" lang="zh-Hans">
+          <p
+            className="clp-prompt"
+            lang={
+              exercise.mode === 'VI_TO_ZH'
+                ? 'vi'
+                : exercise.mode === 'PINYIN_TO_ZH'
+                  ? 'zh-Latn-pinyin'
+                  : 'zh-Hans'
+            }
+          >
             {exercise.prompt}
           </p>
 
           {exercise.format === 'MULTIPLE_CHOICE' && exercise.options ? (
             <fieldset className="clp-options">
-              <legend>Choose one answer</legend>
+              <legend>Chọn một đáp án</legend>
               {exercise.options.map((option) => (
                 <label key={option} className="clp-option">
                   <input
@@ -115,15 +201,26 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
                     name="answer"
                     value={option}
                     checked={answer === option}
-                    onChange={() => setAnswer(option)}
+                    disabled={submitting}
+                    onChange={() => changeAnswer(option)}
                   />
-                  <span lang="zh-Hans">{option}</span>
+                  <span
+                    lang={
+                      exercise.mode === 'ZH_TO_VI'
+                        ? 'vi'
+                        : exercise.mode === 'ZH_TO_PINYIN'
+                          ? 'zh-Latn-pinyin'
+                          : 'zh-Hans'
+                    }
+                  >
+                    {option}
+                  </span>
                 </label>
               ))}
             </fieldset>
           ) : (
             <div className="clp-field">
-              <label htmlFor="answer-input">Your answer</label>
+              <label htmlFor="answer-input">Câu trả lời của bạn</label>
               <input
                 id="answer-input"
                 className="clp-input"
@@ -132,7 +229,8 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
                 autoCapitalize="off"
                 spellCheck={false}
                 value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
+                disabled={submitting}
+                onChange={(e) => changeAnswer(e.target.value)}
                 required
               />
             </div>
@@ -140,7 +238,7 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
 
           <div className="clp-actions">
             <button type="submit" className="clp-button" disabled={submitting || !answer.trim()}>
-              {submitting ? 'Checking…' : 'Submit answer'}
+              {submitting ? 'Đang kiểm tra…' : 'Nộp đáp án'}
             </button>
           </div>
         </form>

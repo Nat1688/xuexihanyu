@@ -1,3 +1,5 @@
+import { RegistrationService } from '../application/registration.service';
+import { Optional, HttpException as SignupHttpException } from '@nestjs/common';
 /**
  * Authentication controller (CLP-00-06; ADR-003/ADR-005).
  *
@@ -53,6 +55,7 @@ interface LoginBody {
 /** Options the controller needs from typed config. */
 export interface AuthControllerOptions {
   readonly nodeEnv: NodeEnvironment;
+  readonly spaOrigin?: string;
   readonly sessionTtlMinutes: number;
 }
 
@@ -76,8 +79,31 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     @Inject(AUTH_CONTROLLER_OPTIONS) options: AuthControllerOptions,
+    @Optional() private readonly registration?: RegistrationService,
   ) {
     this.options = options;
+  }
+
+  @Post('register')
+  @HttpCode(201)
+  async register(
+    @Body() body: { login?: unknown; password?: unknown; confirmPassword?: unknown } | undefined,
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: HttpResponse,
+  ) {
+    if (!this.registration) throw new SignupHttpException('Registration unavailable', 503);
+    if (
+      !this.options.spaOrigin ||
+      req.headers.origin !== this.options.spaOrigin ||
+      (req.headers['sec-fetch-site'] &&
+        !['same-origin', 'same-site'].includes(String(req.headers['sec-fetch-site'])))
+    )
+      throw new CsrfInvalidError();
+    const credentials = await this.registration.register(
+      body ?? {},
+      req.ip ?? req.socket?.remoteAddress ?? 'unknown',
+    );
+    return this.login(credentials, req, res);
   }
 
   /** POST /auth/login — authenticate and issue an opaque session. */

@@ -96,6 +96,24 @@ class FakeAuthService {
 }
 
 class FakeClasses implements ClassRepository {
+  async update(publicId: string, title: string, term: string | null) {
+    const row = (await this.findByPublicId(publicId))!;
+    Object.assign(row, { title, term });
+    return row;
+  }
+
+  async overview() {
+    return {
+      courses: 0,
+      classes: 0,
+      students: 0,
+      lessons: 0,
+      assignments: 0,
+      completed: 0,
+      pending: 0,
+    };
+  }
+
   readonly rows = new Map<string, ClassRecord>();
   async create(input: NewClass): Promise<ClassRecord | null> {
     const publicId = id(100 + this.rows.size);

@@ -67,6 +67,24 @@ const admin = (): ActorContext => ({ publicId: id(99), roles: ['ADMIN'] });
 // --- fakes ------------------------------------------------------------------
 
 class FakeClassRepository implements ClassRepository {
+  async update(publicId: string, title: string, term: string | null) {
+    const row = (await this.findByPublicId(publicId))!;
+    Object.assign(row, { title, term });
+    return row;
+  }
+
+  async overview() {
+    return {
+      courses: 0,
+      classes: 0,
+      students: 0,
+      lessons: 0,
+      assignments: 0,
+      completed: 0,
+      pending: 0,
+    };
+  }
+
   readonly rows = new Map<string, ClassRecord>();
   async create(input: NewClass): Promise<ClassRecord | null> {
     const publicId = id(100 + this.rows.size);
@@ -668,5 +686,24 @@ describe('student detail', () => {
     expect(view.assignments).toHaveLength(1);
     expect(view.progress.evidence.window.days).toBe(30);
     expect(view.recentEvidence.map((e) => e.id)).toEqual(['e1']);
+  });
+});
+describe('CORE-01 class metadata and overview', () => {
+  it('edits owned class metadata and denies foreign class/student writes', async () => {
+    const { service } = fixture();
+    expect(
+      (await service.editClass(teacher(), CLASS_A, { title: 'Lớp mới', term: '2026' })).title,
+    ).toBe('Lớp mới');
+    await expect(service.editClass(teacher(), CLASS_B, { title: 'Forbidden' })).rejects.toThrow();
+    await expect(
+      service.editClass({ publicId: STUDENT, roles: ['STUDENT'] }, CLASS_A, { title: 'Forbidden' }),
+    ).rejects.toThrow();
+  });
+  it('derives overview identity from authenticated teacher and rejects student', async () => {
+    const { service, classes } = fixture();
+    const read = jest.spyOn(classes, 'overview');
+    await service.overview(teacher());
+    expect(read).toHaveBeenCalledWith(TEACHER);
+    await expect(service.overview({ publicId: STUDENT, roles: ['STUDENT'] })).rejects.toThrow();
   });
 });

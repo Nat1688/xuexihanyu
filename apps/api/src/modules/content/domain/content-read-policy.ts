@@ -10,7 +10,7 @@
  *
  * This governs retrieval only; it grants no mutation authority (see
  * `content-authorization.ts`). No student-progress/enrollment concept exists in
- * CP-01, so no per-student filtering applies.
+ * this pure CP-01 visibility helper. ENROLL-01 additionally enforces course approval at HTTP and student content-reader boundaries.
  */
 import { type Role } from '../../identity/domain/role';
 import { type ContentVisibility } from './visibility';

@@ -69,20 +69,22 @@ describe('MasteryService.deriveForActor (CP-04)', () => {
     expect(second[0].lastEventPublicId).toBe(first[0].lastEventPublicId);
   });
 
-  it('folds only events AFTER the stored cursor on a second pass', async () => {
-    const events = [correct(ITEM, 0, 'e1'), correct(ITEM, 1000, 'e2')];
-    const { service, projections } = makeMasteryService(events);
-    await service.deriveForActor(ACTOR, NOW);
-    expect(projections.size()).toBe(1);
-    // Add a new later event by swapping in a reader with the extra event.
-    const extended = makeMasteryService([...events, correct(ITEM, 2000, 'e3')]);
-    // Seed the store with the first derivation, then derive incrementally.
-    for (const p of await service.deriveForActor(ACTOR, NOW)) {
-      await extended.projections.replace(p);
-    }
-    const out = await extended.service.deriveForActor(ACTOR, new Date(NOW.getTime() + 60000));
-    expect(out[0].consecutiveCorrect).toBe(3);
-    expect(out[0].lastEventPublicId).toBe('e3');
+  it('re-folds historical evidence appended behind the stored cursor', async () => {
+    const events = [correct(ITEM, 2000, 'e2')];
+    const { service } = makeMasteryService(events);
+    const first = await service.deriveForActor(ACTOR, NOW);
+    expect(first[0].consecutiveCorrect).toBe(1);
+    expect(first[0].lastEventPublicId).toBe('e2');
+
+    // Simulate delayed persistence: e1 arrives later but retains T1.
+    events.push(correct(ITEM, 1000, 'e1'));
+    const incremental = await service.deriveForActor(ACTOR, new Date(NOW.getTime() + 60_000));
+    const repeated = await service.deriveForActor(ACTOR, new Date(NOW.getTime() + 120_000));
+    const replayed = await service.replay(ACTOR, new Date(NOW.getTime() + 120_000));
+
+    expect(incremental[0].consecutiveCorrect).toBe(2);
+    expect(incremental[0].lastEventPublicId).toBe('e2');
+    expect(repeated).toEqual(replayed);
   });
 });
 

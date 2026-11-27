@@ -91,6 +91,7 @@ export interface RosterEntryView {
 }
 
 export interface AssignmentView {
+  completion?: { total: number; correct: number; completed: boolean };
   readonly id: string;
   readonly studentId: string;
   readonly lessonId: string;
@@ -179,12 +180,28 @@ export class TeacherService {
   // --- classes -------------------------------------------------------------
 
   /** List ONLY the caller's own classes (ADMIN does not get a cross list). */
+  async overview(actor: ActorContext) {
+    this.assertTeacher(actor);
+    return this.deps.classes.overview(actor.publicId);
+  }
+
   async listClasses(actor: ActorContext): Promise<ClassView[]> {
     this.assertTeacher(actor);
     const rows = await this.deps.classes.listOwned(actor.publicId);
     return rows.slice(0, MAX_CLASSES).map((row) => this.toClassView(row));
   }
 
+  async editClass(actor: ActorContext, classId: unknown, input: CreateClassInput) {
+    this.assertTeacher(actor);
+    const klass = await this.loadReadableClass(actor, classId);
+    return this.toClassView(
+      await this.deps.classes.update(
+        klass.publicId,
+        this.requireTitle(input.title),
+        this.optionalTerm(input.term),
+      ),
+    );
+  }
   async createClass(actor: ActorContext, input: CreateClassInput, now: Date): Promise<ClassView> {
     this.assertTeacher(actor);
     const title = this.requireTitle(input.title);
@@ -539,6 +556,7 @@ export class TeacherService {
   }
 
   private toAssignmentView(row: {
+    completion?: { total: number; correct: number; completed: boolean };
     publicId: string;
     studentPublicId: string;
     lessonPublicId: string;
@@ -547,6 +565,7 @@ export class TeacherService {
     createdAt: Date;
   }): AssignmentView {
     return {
+      completion: row.completion,
       id: row.publicId,
       studentId: row.studentPublicId,
       lessonId: row.lessonPublicId,

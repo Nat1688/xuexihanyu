@@ -1,0 +1,15 @@
+# Configuration preparation ONLY. No OCI provisioning/deployment authorization.
+name: clp-oci01b2-staging
+services:
+  api:
+    environment:
+      SPA_ORIGIN: ${CLP_OCI_ORIGIN:?Exact private HTTPS staging origin required}
+    mem_limit: 2g
+  migrate:
+    environment:
+      SPA_ORIGIN: ${CLP_OCI_ORIGIN:?Exact private HTTPS staging origin required}
+  db:
+    mem_limit: 4g
+    command: [postgres, -c, shared_buffers=512MB, -c, max_connections=30]
+  web:
+    mem_limit: 256m

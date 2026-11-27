@@ -1,0 +1,63 @@
+.learning-tools {
+  min-width: 0;
+}
+.learning-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.learning-tools-grid .clp-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 0;
+}
+.learning-tools-grid p {
+  flex: 1;
+}
+.learning-tool-symbol {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #e5efe6;
+  color: var(--clp-accent);
+  font-size: 30px;
+}
+.learning-tools-tabs {
+  margin-block: 20px;
+}
+.learning-tools-tabs button[aria-pressed='true'] {
+  background: var(--clp-accent);
+  color: white;
+}
+.learning-tools-notice {
+  background: var(--clp-surface);
+  border: 1px solid var(--clp-border);
+  border-radius: 12px;
+  padding: 0 16px;
+  margin-block: 16px;
+}
+.learning-tool-frame {
+  display: block;
+  width: 100%;
+  height: 78vh;
+  min-height: 540px;
+  border: 1px solid var(--clp-border);
+  border-radius: 16px;
+  background: white;
+}
+.learning-tool-entry {
+  margin-top: 12px;
+}
+@media (max-width: 650px) {
+  .learning-tools-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .learning-tool-frame {
+    min-height: 540px;
+    border-radius: 10px;
+  }
+}

@@ -13,7 +13,7 @@
  * keys on write and mapped back on read; the internal surrogate `id` never
  * leaves this layer.
  */
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../foundation/prisma.service';
 import {
@@ -26,6 +26,7 @@ import {
   type MasteryProjectionRepository,
   type ProjectionKey,
 } from '../application/mastery-projection-repository';
+import { hasTransactionRunner, type MasteryPrismaClient } from './prisma-mastery-client';
 
 interface ProjectionRow {
   state: MasteryState;
@@ -70,15 +71,16 @@ function toProjection(row: ProjectionRow): MasteryProjection {
 
 @Injectable()
 export class PrismaMasteryProjectionRepository implements MasteryProjectionRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: MasteryPrismaClient) {}
 
   /** Resolve the (actor, item) public ids to internal keys; null when unknown. */
   private async resolveKeys(
     key: ProjectionKey,
+    client: MasteryPrismaClient = this.prisma,
   ): Promise<{ actorId: string; learningItemId: string } | null> {
     const [actor, item] = await Promise.all([
-      this.prisma.user.findUnique({ where: { publicId: key.actorPublicId }, select: { id: true } }),
-      this.prisma.learningItem.findUnique({
+      client.user.findUnique({ where: { publicId: key.actorPublicId }, select: { id: true } }),
+      client.learningItem.findUnique({
         where: { publicId: key.learningItemPublicId },
         select: { id: true },
       }),
@@ -153,32 +155,43 @@ export class PrismaMasteryProjectionRepository implements MasteryProjectionRepos
   async replaceMany(projections: readonly MasteryProjection[]): Promise<number> {
     // Idempotent upsert per key. Writes are serialized (one transaction) to keep
     // a rebuild atomic and to avoid per-row round-trip storms.
+    if (hasTransactionRunner(this.prisma)) {
+      return this.prisma.$transaction((tx) => this.replaceManyIn(tx, projections));
+    }
+    return this.replaceManyIn(this.prisma, projections);
+  }
+
+  private async replaceManyIn(
+    client: MasteryPrismaClient,
+    projections: readonly MasteryProjection[],
+  ): Promise<number> {
     let written = 0;
-    await this.prisma.$transaction(async (tx) => {
-      for (const projection of projections) {
-        const keys = await this.resolveKeys({
+    for (const projection of projections) {
+      const keys = await this.resolveKeys(
+        {
           actorPublicId: projection.actorPublicId,
           learningItemPublicId: projection.learningItemPublicId,
-        });
-        if (!keys) continue;
-        const data = {
-          state: validateMasteryState(projection.state),
-          dueAt: projection.dueAt,
-          ruleVersion: validateRuleVersion(projection.ruleVersion),
-          consecutiveCorrect: projection.consecutiveCorrect,
-          latestOutcomeLapsed: projection.latestOutcomeLapsed,
-          sourceLastEventAt: projection.lastEventAt,
-          sourceLastEventId: projection.lastEventPublicId,
-          recomputedAt: projection.recomputedAt,
-        };
-        await tx.masteryProjection.upsert({
-          where: { actorId_learningItemId: keys },
-          create: { ...keys, ...data },
-          update: data,
-        });
-        written += 1;
-      }
-    });
+        },
+        client,
+      );
+      if (!keys) continue;
+      const data = {
+        state: validateMasteryState(projection.state),
+        dueAt: projection.dueAt,
+        ruleVersion: validateRuleVersion(projection.ruleVersion),
+        consecutiveCorrect: projection.consecutiveCorrect,
+        latestOutcomeLapsed: projection.latestOutcomeLapsed,
+        sourceLastEventAt: projection.lastEventAt,
+        sourceLastEventId: projection.lastEventPublicId,
+        recomputedAt: projection.recomputedAt,
+      };
+      await client.masteryProjection.upsert({
+        where: { actorId_learningItemId: keys },
+        create: { ...keys, ...data },
+        update: data,
+      });
+      written += 1;
+    }
     return written;
   }
 

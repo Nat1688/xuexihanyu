@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
 import './index.css';
+import './ink.css';
+import { initializeVietnameseUi } from './ui-vi';
+
+initializeVietnameseUi();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

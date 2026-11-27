@@ -1,3 +1,7 @@
+import {
+  readLessonCompletions,
+  completionKey,
+} from '../../content/infrastructure/lesson-completion.reader';
 /**
  * CP-06 assignment adapter (`lesson_assignments`).
  *
@@ -119,6 +123,13 @@ export class PrismaTeacherAssignmentRepository implements AssignmentRepository {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: ASSIGNMENT_SELECT,
     });
-    return rows.map(toRecord);
+    const states = await readLessonCompletions(
+      this.prisma,
+      rows.map((row) => ({ studentId: studentPublicId, lessonId: row.lesson.publicId })),
+    );
+    return rows.map((row) => ({
+      ...toRecord(row),
+      completion: states.get(completionKey(studentPublicId, row.lesson.publicId)),
+    }));
   }
 }

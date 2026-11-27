@@ -1,0 +1,21 @@
+# Mac Local Trial HTTPS; cert/key generated and trusted by Owner outside repository.
+services:
+  web:
+    ports:
+      - '127.0.0.1:${CLP_HTTPS_PORT:-18443}:8443'
+    volumes:
+      - type: bind
+        source: ./tls.conf
+        target: /etc/nginx/conf.d/tls.conf
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${CLP_TLS_CERT_FILE:?External TLS certificate required}
+        target: /run/tls/cert.pem
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${CLP_TLS_KEY_FILE:?External TLS key required}
+        target: /run/tls/key.pem
+        read_only: true
+        bind: { create_host_path: false }

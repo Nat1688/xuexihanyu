@@ -31,6 +31,41 @@ export class FakeContentRepository implements ContentRepository {
   private readonly items: StoredItem[] = [];
   private readonly links: Array<{ lessonPublicId: string; link: StoredLessonItem }> = [];
 
+  async readComposition(publicId: string) {
+    const lesson = await this.findLessonByPublicId(publicId);
+    if (!lesson) return null;
+    const links = await this.listItemsByLesson(publicId);
+    const items = await Promise.all(
+      [...links]
+        .sort((a, b) => a.position - b.position)
+        .map((link) => this.findItemByPublicId(link.learningItemPublicId)),
+    );
+    return { lesson, items: items.filter((item): item is StoredItem => item !== null) };
+  }
+  async updateCourse(input: StoredNode): Promise<void> {
+    const node = this.nodes.find((row) => row.publicId === input.publicId)!;
+    Object.assign(node, input);
+  }
+  async saveComposition(
+    input: import('../../src/modules/content/application/content-repository').LessonComposition,
+  ): Promise<void> {
+    const node = this.nodes.find((row) => row.publicId === input.node.publicId)!;
+    Object.assign(node, input.node);
+    for (const item of input.items)
+      if (!this.items.some((row) => row.publicId === item.publicId)) this.items.push(item);
+    this.links.splice(
+      0,
+      this.links.length,
+      ...this.links.filter((row) => row.lessonPublicId !== input.node.publicId),
+    );
+    input.items.forEach((item, position) =>
+      this.links.push({
+        lessonPublicId: input.node.publicId,
+        link: { learningItemPublicId: item.publicId, position },
+      }),
+    );
+  }
+
   private mk(
     level: NodeRow['level'],
     input: CreateNodeInput,

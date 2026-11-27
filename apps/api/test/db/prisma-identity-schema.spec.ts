@@ -37,6 +37,19 @@ const MIGRATIONS_DIR = path.join(REPO_ROOT, 'prisma', 'migrations');
 
 /** The approved Prisma model names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
 const APPROVED_MODELS = [
+  'DictionarySource', // Owner-approved DICT02.
+  'DictionarySourceCategory', // Owner-approved DICT02.
+  'DictionaryImportBatch', // Owner-approved DICT02.
+  'DictionaryEntry', // Owner-approved DICT02.
+  'DictionarySense', // Owner-approved DICT02.
+  'DictionaryImportItem', // Owner-approved DICT02.
+  'DictionarySenseOrigin', // Owner-approved DICT02.
+  'DictionaryCategory', // Owner-approved DICT02.
+  'DictionaryEntryCategory', // Owner-approved DICT02.
+  'DictionaryEntryRevision', // Owner-approved DICT02.
+  'DictionaryEntryReport', // Owner-approved DICT02.
+  'DictionaryAuditEvent', // Owner-approved DICT02.
+
   'User',
   'PasswordCredential',
   'UserRoleAssignment',
@@ -51,13 +64,28 @@ const APPROVED_MODELS = [
   'AnswerSession',
   'AnswerSubmission',
   'TeachingClass',
+  'ClassInvitation',
   'ClassEnrollment',
   'LessonAssignment',
   'TeacherNote',
+  'CourseApplication',
 ];
 
 /** The approved physical table names (CLP-00-05/06 + CP-01 + CP-03 + CP-04). */
 const APPROVED_TABLES = [
+  'dictionary_sources', // Owner-approved DICT02.
+  'dictionary_source_categories', // Owner-approved DICT02.
+  'dictionary_import_batches', // Owner-approved DICT02.
+  'dictionary_entries', // Owner-approved DICT02.
+  'dictionary_senses', // Owner-approved DICT02.
+  'dictionary_import_items', // Owner-approved DICT02.
+  'dictionary_sense_origins', // Owner-approved DICT02.
+  'dictionary_categories', // Owner-approved DICT02.
+  'dictionary_entry_categories', // Owner-approved DICT02.
+  'dictionary_entry_revisions', // Owner-approved DICT02.
+  'dictionary_entry_reports', // Owner-approved DICT02.
+  'dictionary_audit_events', // Owner-approved DICT02.
+
   'users',
   'password_credentials',
   'user_roles',
@@ -72,9 +100,11 @@ const APPROVED_TABLES = [
   'exercise_sessions',
   'answer_submissions',
   'teaching_classes',
+  'class_invitations',
   'class_enrollments',
   'lesson_assignments',
   'teacher_notes',
+  'course_applications',
 ];
 
 /** The approved enums (CLP-00-05/06 + CP-01 + CP-03 + CP-04 + CP-05). */
@@ -86,6 +116,7 @@ const APPROVED_ENUMS = [
   'LearningEventType',
   'MasteryState',
   'ExerciseFormatKind',
+  'CourseApplicationStatus',
 ];
 
 /** The only tables a migration may create, plus Prisma metadata. */

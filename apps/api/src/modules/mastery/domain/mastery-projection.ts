@@ -80,9 +80,9 @@ export interface MasteryProjection {
   /** Rule version this projection was derived under. */
   readonly ruleVersion: number;
   /**
-   * Source-event cursor: the instant of the latest event folded into this
-   * projection. A rebuild re-derives from scratch; an incremental pass folds
-   * only events strictly after this cursor.
+   * Source-event cursor: the instant of the latest event in the ordered source
+   * set. It is an audit marker, not a safe filtering watermark: delayed events
+   * may be appended later with an earlier historical timestamp.
    */
   readonly lastEventAt: Date | null;
   /** The public id of the latest event folded in (stable tiebreak for cursors). */

@@ -1,3 +1,4 @@
+import { CourseAccessService } from '../../admissions/course-access.service';
 /**
  * Content HTTP controller (CP-01).
  *
@@ -37,11 +38,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AuthGuard } from '../../identity/http/auth.guard';
+import { AuthGuard, readCookie } from '../../identity/http/auth.guard';
+import { CsrfInvalidError } from '../../identity/application/auth-errors';
+import { CSRF_COOKIE_NAME } from '../../identity/application/cookie-policy';
+import { CSRF_HEADER, verifyCsrfProof } from '../../identity/domain/csrf';
 import { type AuthenticatedRequest } from '../../identity/http/authenticated-request';
 import { RequireRoles } from '../../identity/http/require-roles';
 import { RoleGuard } from '../../identity/http/role.guard';
-import { type ContentActor, type LearningItemKind } from '../domain';
+import { type ContentActor, type LearningItemKind, ContentValidationError } from '../domain';
 import { ContentService, type ItemDraft, type NodeDraft } from '../application/content-service';
 import { ContentExceptionFilter } from './content-exception.filter';
 
@@ -51,11 +55,78 @@ function actorOf(req: AuthenticatedRequest): ContentActor {
   return { userId: principal.userId, roles: principal.roles };
 }
 
+function assertCsrf(req: AuthenticatedRequest): void {
+  const auth = req.auth;
+  if (!auth) throw new CsrfInvalidError();
+  const headerToken = req.headers[CSRF_HEADER];
+  if (
+    !verifyCsrfProof({
+      cookieToken: readCookie(req.headers.cookie, CSRF_COOKIE_NAME),
+      headerToken: Array.isArray(headerToken) ? headerToken[0] : headerToken,
+      sessionHash: auth.csrfHash,
+    })
+  )
+    throw new CsrfInvalidError();
+}
+
+function assertPublicContentId(id: string): void {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    throw new ContentValidationError('id', 'must be a public UUID');
+}
+
 @Controller('content')
 @UseGuards(AuthGuard, RoleGuard)
 @UseFilters(ContentExceptionFilter)
 export class ContentController {
-  constructor(private readonly content: ContentService) {}
+  constructor(
+    private readonly content: ContentService,
+    private readonly access: CourseAccessService,
+  ) {}
+
+  @Get('lessons/:lessonPublicId')
+  async readLesson(@Req() req: AuthenticatedRequest, @Param('lessonPublicId') id: string) {
+    assertPublicContentId(id);
+    await this.access.assert(req.auth!.principal, 'lesson', id);
+    const value = await this.content.readLesson(actorOf(req), id);
+    return {
+      lesson: projectNode(value.lesson),
+      items: value.items.map(projectItem),
+      revision: value.revision,
+    };
+  }
+
+  @Post('lessons/:lessonPublicId/save')
+  @RequireRoles('TEACHER', 'ADMIN')
+  @HttpCode(200)
+  async saveLesson(
+    @Req() req: AuthenticatedRequest,
+    @Param('lessonPublicId') id: string,
+    @Body() body: NodeDraft & { items?: unknown; revision?: unknown },
+  ) {
+    assertCsrf(req);
+    assertPublicContentId(id);
+    if (!body || typeof body.revision !== 'string')
+      throw new ContentValidationError('revision', 'reload lesson before saving');
+    const value = await this.content.saveLesson(actorOf(req), id, body ?? ({} as NodeDraft));
+    return {
+      lesson: projectNode(value.lesson),
+      items: value.items.map(projectItem),
+      revision: value.revision,
+    };
+  }
+
+  @Post('courses/:coursePublicId/save')
+  @RequireRoles('TEACHER', 'ADMIN')
+  @HttpCode(200)
+  async editCourse(
+    @Req() req: AuthenticatedRequest,
+    @Param('coursePublicId') id: string,
+    @Body() body: NodeDraft,
+  ) {
+    assertCsrf(req);
+    assertPublicContentId(id);
+    return projectNode(await this.content.editCourse(actorOf(req), id, body ?? ({} as NodeDraft)));
+  }
 
   // --- courses -----------------------------------------------------------
 
@@ -66,6 +137,7 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Body() body: NodeDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const node = await this.content.createCourse(actorOf(req), body);
     return projectNode(node);
   }
@@ -86,6 +158,7 @@ export class ContentController {
     @Param('coursePublicId') coursePublicId: string,
     @Body() body: NodeDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const node = await this.content.createUnit(actorOf(req), coursePublicId, body);
     return projectNode(node);
   }
@@ -95,6 +168,7 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Param('coursePublicId') coursePublicId: string,
   ): Promise<Record<string, unknown>[]> {
+    await this.access.assert(req.auth!.principal, 'course', coursePublicId);
     const nodes = await this.content.listUnits(actorOf(req), coursePublicId);
     return (nodes ?? []).map(projectNode);
   }
@@ -109,6 +183,7 @@ export class ContentController {
     @Param('unitPublicId') unitPublicId: string,
     @Body() body: NodeDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const node = await this.content.createLesson(actorOf(req), unitPublicId, body);
     return projectNode(node);
   }
@@ -118,6 +193,7 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Param('unitPublicId') unitPublicId: string,
   ): Promise<Record<string, unknown>[]> {
+    await this.access.assert(req.auth!.principal, 'unit', unitPublicId);
     const nodes = await this.content.listLessons(actorOf(req), unitPublicId);
     return (nodes ?? []).map(projectNode);
   }
@@ -131,11 +207,13 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Body() body: ItemDraft,
   ): Promise<Record<string, unknown>> {
+    assertCsrf(req);
     const item = await this.content.createItem(actorOf(req), body);
     return projectItem(item);
   }
 
   @Get('items')
+  @RequireRoles('TEACHER', 'ADMIN')
   @RequireRoles('TEACHER', 'ADMIN')
   async listItems(
     @Req() req: AuthenticatedRequest,
@@ -153,6 +231,7 @@ export class ContentController {
     @Param('lessonPublicId') lessonPublicId: string,
     @Body() body: { learningItemPublicId: string; position?: unknown },
   ): Promise<void> {
+    assertCsrf(req);
     await this.content.attachItemToLesson(
       actorOf(req),
       lessonPublicId,
@@ -166,6 +245,7 @@ export class ContentController {
     @Req() req: AuthenticatedRequest,
     @Param('lessonPublicId') lessonPublicId: string,
   ): Promise<Array<{ learningItemPublicId: string; position: number }>> {
+    await this.access.assert(req.auth!.principal, 'lesson', lessonPublicId);
     const rows = await this.content.listLessonItems(actorOf(req), lessonPublicId);
     return rows ?? [];
   }

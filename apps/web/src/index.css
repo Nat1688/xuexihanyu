@@ -228,3 +228,83 @@ a {
     width: 100%;
   }
 }
+/* Product-wide visual foundation, shared by teacher and learner. */
+:root {
+  color-scheme: light;
+  --clp-bg: #f5f7f3;
+  --clp-surface: #fff;
+  --clp-text: #20382f;
+  --clp-muted: #627267;
+  --clp-border: #dbe4dc;
+  --clp-accent: #21634c;
+  --clp-accent-text: #fff;
+  --clp-ok: #166534;
+  --clp-bad: #a4161a;
+  --clp-focus: #aa601d;
+}
+body {
+  background: radial-gradient(ellipse at 80% 0, #e9efe2 0, transparent 45%), var(--clp-bg);
+}
+.clp-shell {
+  max-width: 1050px;
+  padding: 24px;
+}
+.clp-shell > header {
+  padding: 8px 0 18px;
+  border-bottom: 1px solid var(--clp-border);
+  margin-bottom: 24px;
+}
+.clp-shell > header > p {
+  color: var(--clp-accent);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+h1 {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+.clp-button {
+  border-radius: 10px;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.clp-button:hover:enabled {
+  box-shadow: 0 3px 10px #173b231c;
+}
+.clp-card {
+  border-radius: 20px;
+  padding: clamp(20px, 4vw, 32px);
+  box-shadow: 0 8px 30px #19342405;
+}
+input,
+textarea,
+select {
+  max-width: 100%;
+}
+textarea {
+  resize: vertical;
+}
+button {
+  font: inherit;
+  min-height: 44px;
+  cursor: pointer;
+}
+label {
+  font-weight: 550;
+}
+fieldset {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .clp-shell {
+    padding: 16px;
+  }
+  .clp-actions > .clp-button {
+    flex: 1 1 auto;
+  }
+  h1 {
+    overflow-wrap: anywhere;
+  }
+}

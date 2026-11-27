@@ -1,0 +1,114 @@
+name: clp-oci01b2
+
+x-runtime: &runtime
+  NODE_ENV: production
+  API_PORT: '3000'
+  POSTGRES_HOST: db
+  POSTGRES_PORT: '5432'
+  POSTGRES_DB: clp_oci01b2
+  POSTGRES_USER: clp_oci01b2
+  POSTGRES_PASSWORD: ${CLP_DB_PASSWORD:?Runtime CLP_DB_PASSWORD required}
+  SESSION_SECRET: ${CLP_SESSION_SECRET:?Runtime CLP_SESSION_SECRET required}
+  CSRF_SECRET: ${CLP_CSRF_SECRET:?Runtime CLP_CSRF_SECRET required}
+  SESSION_TTL_MINUTES: '60'
+  SPA_ORIGIN: ${CLP_ORIGIN:-https://localhost:18443}
+  LC03B_PREVIEW_ENABLED: 'false'
+  CLP_RUNTIME_PROFILE: disposable
+  CLP_TARGET_CONFIRMATION: ${CLP_TARGET_CONFIRMATION:?Explicit target confirmation required}
+
+services:
+  db:
+    image: postgres:17.11-bookworm
+    platform: ${CLP_PLATFORM:-linux/arm64}
+    environment:
+      POSTGRES_DB: clp_oci01b2
+      POSTGRES_USER: clp_oci01b2
+      POSTGRES_PASSWORD: ${CLP_DB_PASSWORD:?Runtime CLP_DB_PASSWORD required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    command: [postgres, -c, shared_buffers=128MB, -c, max_connections=20]
+    volumes:
+      - pg17-data:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 0.75
+    stop_grace_period: 45s
+    restart: 'no'
+
+  migrate:
+    image: clp-oci01b2-migrate:review
+    platform: ${CLP_PLATFORM:-linux/arm64}
+    build:
+      context: ../..
+      dockerfile: deploy/oci01b2/api.Dockerfile
+      target: migrate
+    environment: *runtime
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [database]
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
+    mem_limit: 512m
+
+  api:
+    image: clp-oci01b2-api:review
+    platform: ${CLP_PLATFORM:-linux/arm64}
+    build:
+      context: ../..
+      dockerfile: deploy/oci01b2/api.Dockerfile
+      target: runtime
+    environment: *runtime
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [frontend, database]
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+    stop_grace_period: 45s
+    restart: 'no'
+
+  web:
+    image: clp-oci01b2-web:review
+    platform: ${CLP_PLATFORM:-linux/arm64}
+    build:
+      context: ../..
+      dockerfile: deploy/oci01b2/web.Dockerfile
+    ports:
+      - '127.0.0.1:${CLP_HTTP_PORT:-18080}:8080'
+    networks: [frontend]
+    depends_on:
+      api: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.1
+    stop_grace_period: 15s
+    restart: 'no'
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8080/proxy-health]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  pg17-data:
+
+networks:
+  frontend:
+  database:
+    internal: true

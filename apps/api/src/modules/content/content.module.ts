@@ -1,3 +1,4 @@
+import { AdmissionsModule } from '../admissions/admissions.module';
 import { Module } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
@@ -35,7 +36,7 @@ import { ContentController } from './http/content.controller';
  * enrollment or student progress.
  */
 @Module({
-  imports: [IdentityModule],
+  imports: [IdentityModule, AdmissionsModule],
   controllers: [ContentController],
   providers: [
     { provide: CONTENT_REPOSITORY, useClass: PrismaContentRepository },

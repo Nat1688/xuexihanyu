@@ -1,3 +1,5 @@
+import { DictionaryModule } from './modules/dictionary/dictionary.module';
+import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
 import { ConfigModule } from './config/config.module';
@@ -15,6 +17,8 @@ import { MasteryModule } from './modules/mastery/mastery.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { StudentModule } from './modules/student/student.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
+import { PreviewModule } from './modules/lesson-preview/preview.module';
+import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 
 /**
  * Root application module.
@@ -35,17 +39,21 @@ import { TeacherModule } from './modules/teacher/teacher.module';
 @Module({
   imports: [
     ConfigModule,
+    DictionaryModule,
     PrismaModule,
     FoundationModule,
     FoundationLoggingModule,
     HealthModule,
     IdentityModule,
     ContentModule,
+    AdmissionsModule,
     ExerciseModule,
     LearningEventsModule,
     MasteryModule,
     StudentModule,
     TeacherModule,
+    ClassroomsModule,
+    PreviewModule,
     ReportingModule,
     AiModule,
   ],
