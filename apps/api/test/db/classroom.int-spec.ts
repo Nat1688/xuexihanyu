@@ -81,7 +81,8 @@ describeDb('CL-01 PostgreSQL 17 / real HTTP authorization (synthetic auth adapte
     const migrations = await db.$queryRaw<
       { total: number; successful: number }[]
     >`SELECT count(*)::int AS total,count(*) FILTER (WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL)::int AS successful FROM _prisma_migrations`;
-    expect(migrations[0]).toEqual({ total: 11, successful: 11 });
+    // Approved chain: 11 CL-01/ENROLL-01 migrations + DICT-01 migration12.
+    expect(migrations[0]).toEqual({ total: 12, successful: 12 });
     const suffix = randomUUID();
     async function user(name: string, role: 'TEACHER' | 'STUDENT') {
       return db.user.create({

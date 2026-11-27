@@ -44,6 +44,19 @@ const APPROVED_TABLES = new Set([
   'lesson_assignments',
   'teacher_notes',
   'course_applications', // ENROLL-01 approved additive table.
+  // DICT-01 migration12 (20261126040000_dictionary_foundation), applied in production 26/11/2026.
+  'dictionary_sources',
+  'dictionary_source_categories',
+  'dictionary_import_batches',
+  'dictionary_entries',
+  'dictionary_senses',
+  'dictionary_import_items',
+  'dictionary_sense_origins',
+  'dictionary_categories',
+  'dictionary_entry_categories',
+  'dictionary_entry_revisions',
+  'dictionary_entry_reports',
+  'dictionary_audit_events',
 ]);
 const { getUrl, REPO_ROOT } = require('./env.cjs');
 
