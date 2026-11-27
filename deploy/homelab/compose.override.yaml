@@ -1,0 +1,39 @@
+name: clp-homelab
+
+services:
+  db:
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: clp_homelab
+      POSTGRES_USER: clp_homelab
+    restart: unless-stopped
+    mem_limit: 768m
+
+  migrate:
+    image: xuexihanyu-migrate:homelab-21c226b
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: clp_homelab
+      POSTGRES_USER: clp_homelab
+      CLP_RUNTIME_PROFILE: homelab
+      CLP_TARGET_CONFIRMATION: CLP_HOMELAB_ONLY
+    restart: "no"
+
+  api:
+    image: xuexihanyu-api:homelab-21c226b
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: clp_homelab
+      POSTGRES_USER: clp_homelab
+      CLP_RUNTIME_PROFILE: homelab
+      CLP_TARGET_CONFIRMATION: CLP_HOMELAB_ONLY
+    mem_limit: 768m
+    restart: unless-stopped
+
+  web:
+    image: xuexihanyu-web:21c226b
+    platform: linux/amd64
+    ports: !override
+      - "127.0.0.1:8083:8080"
+    mem_limit: 128m
+    restart: unless-stopped

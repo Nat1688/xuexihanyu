@@ -1,3 +1,27 @@
+# XueXiHanyu — Current project state
+
+Updated 27/11/2026 (Asia/Saigon) by REL-01 production source reconciliation.
+
+- **Canonical branch:** `release/production-baseline-20261127` on GitHub. It contains the exact source of
+  the release running on https://xuexihanyu.online (API `sha256:a7e4f662…`, Web `sha256:2cc76bed…`),
+  12 migrations (all applied in production), and reproducible homelab deploy tooling in `deploy/homelab/`.
+- **Deploying agents start here:**
+  [REL-01 handoff](docs/Review/REL-01-PRODUCTION-RECONCILIATION-HANDOFF.md) and
+  [homelab runbook](deploy/homelab/README.md).
+- Live product: Teacher/Student workflows, course admissions (ENROLL-01), class enrollment (CL-01),
+  progress/mastery evidence, learning tools, Dictionary (DICT-01/02–04/07 publication), Flashcards
+  (FC-01/FC-02), UI-V5 cultural interface, lesson import with Vietnamese CSV/JSON templates (IMPORT-01/FIX-01).
+- Verified 27/11/2026 on a fresh clone: lint, typecheck, API 831/831, Web 131/131, packaging 82/82,
+  integration 74/74 (11 suites, 0 skipped) on disposable PostgreSQL 17.11, secret scan PASS; Web rebuild
+  112/112 identical to production assets. `format:check` still fails on 15 pre-existing files.
+- Not merged into `main`; Owner decides integration. Owner authenticated production UAT remains manual.
+- Unreleased work kept outside this branch: importer v2 / migration13 (`codex/dict-import-compatibility`
+  worktree, uncommitted; archived in the REL-01 backup).
+
+Everything below this line is the previous state record, kept unchanged as history.
+
+---
+
 # XueXiHanyu project state — TW-01 independent review
 
 Current baseline: local Main `0964b33b6771166b972209effda95e0c80e44ab0`.
