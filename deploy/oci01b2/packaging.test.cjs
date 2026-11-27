@@ -169,3 +169,12 @@ for (const fixtureName of ['.env', 'package.json'])
       }
     },
   );
+test('Web assets stay readable by nginx regardless of shipped source file modes', () => {
+  const web = read('web.Dockerfile').replace(/\r\n/g, '\n');
+  assert.match(
+    web,
+    /npm run build -w @clp\/web\n(?:#[^\n]*\n)*RUN chmod -R a\+rX apps\/web\/dist\n[\s\S]*COPY --from=build \/app\/apps\/web\/dist /,
+  );
+  const ship = fs.readFileSync(path.join(__dirname, '../homelab/ship.sh'), 'utf8');
+  assert.match(ship, /umask 077; test ! -e '\$DIR'; mkdir '\$DIR'; umask 022; tar -x -C '\$DIR'/);
+});

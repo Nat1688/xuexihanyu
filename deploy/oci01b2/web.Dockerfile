@@ -20,6 +20,8 @@ RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true npm ci --no-audit --no-fund
 COPY apps/web ./apps/web
 # Fixed public path, NOT a secret or arbitrary environment projection.
 RUN VITE_API_BASE_URL=/api npm run build -w @clp/web
+# Vite copies public/ with its source mode; the runtime user (nginx) must be able to read every asset.
+RUN chmod -R a+rX apps/web/dist
 
 FROM ${NGINX_IMAGE} AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \

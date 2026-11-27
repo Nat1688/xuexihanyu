@@ -16,8 +16,10 @@ git fetch --quiet origin "$BRANCH"
 DIR=/home/nam/apps/xuexihanyu-releases/$NAME
 SSH=(ssh -i "$KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET")
 # LF everywhere: identical bytes no matter which OS ships it.
+# The release dir stays 0700 (umask 077); sources inside keep normal git modes (umask 022) so files that
+# reach images unchanged (e.g. apps/web/public/*) stay readable by non-root runtime users.
 git -c core.autocrlf=false -c core.eol=lf archive --format=tar --prefix=src/ "$SHA" \
-  | "${SSH[@]}" "set -e; umask 077; test ! -e '$DIR'; mkdir '$DIR'; tar -x -C '$DIR'"
+  |"${SSH[@]}" "set -e; umask 077; test ! -e '$DIR'; mkdir '$DIR'; umask 022; tar -x -C '$DIR'"
 printf '{"commit":"%s","branch":"%s","shippedAt":"%s"}\n' "$SHA" "$BRANCH" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   | "${SSH[@]}" "cat > '$DIR/src/RELEASE-SOURCE.json'"
 echo "SHIPPED $SHA -> $TARGET:$DIR"
