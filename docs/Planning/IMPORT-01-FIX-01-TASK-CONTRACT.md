@@ -1,0 +1,12 @@
+# IMPORT-01-FIX-01 — Vietnamese Excel-friendly lesson template
+
+Checkpoint: reviewed source, regression and Web-only rollout to the existing xuexihanyu.online homelab.
+Authorization: Owner screenshot/request on 27/11/2026 asks to fix unreadable characters and replace technical labels with Vietnamese examples/descriptions.
+Objective: a teacher can open the template in Excel, understand every field and import the completed lesson.
+In scope: UTF-8 BOM CSV, Vietnamese headers/item/media labels, examples and field-by-field Vietnamese instructions in the existing import panel, readable scoped typography, localized preview, comma/semicolon CSV from Excel, old-English-template compatibility. Keep current JSON and save contracts.
+Out of scope: new XLSX import, application-wide typography redesign, HTML import, sessions/autosave/recovery, API/database/schema/grades, real lesson writes during tests.
+Contracts: AGENTS.md, IMPORT-01, current content domain/revision/ownership/CSRF contracts. Input localization maps to the same canonical application fields/enums; no authorization or semantic change.
+Allowed files: curriculum import helper/panel/scoped CSS, public CSV template, import tests, this contract and dedicated handoff. Use an isolated copy of the previously verified current Web source for deployment; do not modify another task's worktree.
+Acceptance: file starts with EF BB BF and opens as Unicode; Vietnamese header/value template imports with unchanged Chinese/Pinyin/meaning; UI explains required/optional fields and first-row lesson metadata with concrete examples; preview uses Vietnamese kinds; old English CSV/JSON still import; duplicate aliases/unknown headers/invalid kinds/unsafe URLs still reject; existing append/replace/limits/revision behavior preserved; no mobile overflow.
+Tests: targeted parser/compatibility/BOM/localization regressions; independent review and fixes; full current-source Web/API suites, lint/typecheck/build, production-bundle and live-static browser acceptance with synthetic APIs; public asset hashes/readiness. Check UTF-8 bytes directly and view browser screenshots; do not claim native Excel behavior without checking it.
+Security/migrations/config: browser-only format normalization; no new dependencies/API/schema/migrations. Web-image-only Compose override, image-ID guard, unchanged API/DB fingerprints and pinned rollback, reusing the reviewed deployment process.

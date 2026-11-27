@@ -70,6 +70,10 @@ for (const file of [
   'apps/api/src/main.ts',
   'apps/web/src/App.tsx',
   'apps/web/src/styles.css',
+  'apps/web/src/assets/fonts/noto-sans-000.woff2',
+  'apps/web/src/assets/cultural-landmarks.webp',
+  'apps/web/public/templates/bai-hoc-mau.csv',
+  'apps/web/public/templates/bai-hoc-mau.json',
   'prisma/schema.prisma',
   'prisma/migrations/migration_lock.toml',
   'prisma/migrations/example/migration.sql',
@@ -106,6 +110,8 @@ for (const file of [
   'deploy/oci01b2/evidence-local/key.pem',
   'apps/web/src/key.pem',
   'apps/api/src/dist/build.ts',
+  'apps/web/public/notes.txt',
+  'apps/web/public/templates/readme.md',
 ])
   test('excludes non-build path: ' + file, () => assert.equal(included(file), false));
 test('all current repository build-context files pass unchanged fail-closed audit', () => {

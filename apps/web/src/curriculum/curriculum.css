@@ -4,6 +4,41 @@
   gap: 18px;
   margin-top: 24px;
 }
+.lesson-import {
+  font-family: 'Noto Sans', 'Noto Sans SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.lesson-import summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.lesson-import-guide {
+  margin-block: 20px;
+  padding: 16px;
+  border: 1px solid var(--clp-border);
+  border-radius: 12px;
+}
+.lesson-import-guide li + li {
+  margin-top: 10px;
+}
+.lesson-import-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 16px;
+}
+.lesson-import-fields dt {
+  font-weight: 700;
+}
+.lesson-import-fields dd {
+  margin: 6px 0 0;
+}
+.lesson-import-fields dd span {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--clp-accent);
+}
 .curriculum-tag {
   color: var(--clp-accent);
   background: #e9f3ef;

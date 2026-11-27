@@ -5,6 +5,7 @@ import { useResource } from '../teacher/useResource';
 import { ResourceView } from '../teacher/TeacherViews';
 import { studentError } from '../ui-vi';
 import './curriculum.css';
+import { LessonImport } from './LessonImport';
 const kinds: Record<string, string> = {
   VOCABULARY: 'Từ vựng',
   CHARACTER: 'Chữ Hán',
@@ -291,6 +292,7 @@ export function LessonEditor({
           <LessonContent document={document} />
         ) : (
           <>
+            <LessonImport document={document} onApply={change} />
             <label className="clp-field">
               Tiêu đề bài học
               <input

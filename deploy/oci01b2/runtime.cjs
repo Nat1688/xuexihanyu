@@ -8,6 +8,7 @@ function buildEnvironment(input, mode) {
   const profiles = {
     disposable: { database: 'clp_oci01b2', confirmation: 'OCI01B2_SYNTHETIC_ONLY' },
     'local-trial': { database: 'clp_local_trial', confirmation: 'MAC_LOCAL_TRIAL_SYNTHETIC_ONLY' },
+    homelab: { database: 'clp_homelab', confirmation: 'CLP_HOMELAB_ONLY' },
   };
   const profile = Object.hasOwn(profiles, input.CLP_RUNTIME_PROFILE)
     ? profiles[input.CLP_RUNTIME_PROFILE]

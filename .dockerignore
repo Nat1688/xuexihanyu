@@ -15,6 +15,10 @@
 !apps/web/src/**/*.ts
 !apps/web/src/**/*.tsx
 !apps/web/src/**/*.css
+!apps/web/src/**/*.woff2
+!apps/web/src/**/*.webp
+!apps/web/public/templates/*.csv
+!apps/web/public/templates/*.json
 !prisma/schema.prisma
 !prisma/migrations/migration_lock.toml
 !prisma/migrations/*/migration.sql

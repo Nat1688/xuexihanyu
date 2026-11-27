@@ -28,3 +28,11 @@ Dockerfiles hiện có hỗ trợ build native `linux/arm64` hoặc `linux/amd64
 Đã kiểm thử source trước bàn giao: 778 API + 60 Web tests, 74 integration tests (11 suites, 0 skip), 13 luồng Chrome/PostgreSQL cô lập; typecheck/lint/API-Web build PASS. Kiểm tra toàn repository về format còn 56 cảnh báo baseline ở file không đổi; được ghi trong hồ sơ ENROLL-01. Local Trial đã healthy và kiểm tra HTTPS/đăng ký tiếng Việt với Chrome en-US; Teacher/Student bằng tài khoản thật vẫn `PENDING_OWNER_MANUAL_TEST`.
 
 Tài liệu chi tiết: [CORE-01](../Review/CORE-01-HANDOFF.md), [TOOLS-01](../Review/TOOLS-01-HANDOFF.md), [ENROLL-01](../Review/ENROLL-01-HANDOFF.md), [quyết định quyền học](../Architecture/ADR/ADR-006-course-admissions.md). Quyền tái sử dụng audio bên ngoài của Pinyin Studio chưa được xác nhận; giữ nguyên notice trong source khi chuyển máy.
+
+## Source revalidation — 25/11/2026
+
+Current source is UI-02 `b191d162c4f965d9abf9a3a89a62cf373e9188d7` on `codex/core-product-completion`; local main remains8fc28d3. UI-02 is a Web presentation update; its handoff contains no homelab/Mac rollout evidence. Confirm the target's actual revision/images/schema before choosing a rollout. This follow-up does not authorize deployment or change a target.
+
+Fresh Windows checks:778API+60Web PASS, lint/typecheck/API-Web build/catalog PASS (build rerun with filesystem permission). Formatting still reports56baseline files. Root secret-scan fails on ignored local `.core-demo` content; a clean source export passes. These are distinct gates; do not report the root command or full verify as PASS. See [current state](../../PROJECT_STATE.md) and [revalidation report](../Review/BASELINE-REVALIDATION-2026-11-25.md).
+
+Before execution, record the actual homelab access/origin, OS/architecture, runtime/project names, image revisions, schema version and backup/restore procedure from that target. Supply secrets privately; never copy Mac credentials or blindly execute its hardcoded Compose guards. Keep the existing admission policy on schema11:an older API without those gates is not a valid security rollback. Real-account Teacher/Student acceptance and current remote health remain unverified by this follow-up.

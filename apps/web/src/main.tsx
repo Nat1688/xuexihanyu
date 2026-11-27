@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './index.css';
 import './ink.css';
+import './assets/fonts/fonts.css';
+import './cultural-theme.css';
 import { initializeVietnameseUi } from './ui-vi';
 
 initializeVietnameseUi();

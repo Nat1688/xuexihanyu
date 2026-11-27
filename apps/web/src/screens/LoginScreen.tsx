@@ -10,7 +10,7 @@ import { type FormEvent, useRef, useState } from 'react';
 import { studentError, ui } from '../ui-vi';
 import { ApiError, request, studentApi, type Principal } from '../api/client';
 import { WorkspaceBrand } from '../WorkspaceBrand';
-import { InkArtwork } from '../InkArtwork';
+import { CulturalWelcome } from '../CulturalWelcome';
 
 export interface LoginScreenProps {
   onAuthenticated: (principal: Principal) => void;
@@ -82,83 +82,85 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   return (
     <section aria-labelledby="login-heading" className="clp-card ink-login">
-      <WorkspaceBrand />
-      <InkArtwork kind="landscape" />
-      <p className="ink-eyebrow">Mỗi ngày, hiểu thêm một chút</p>
-      <h1 id="login-heading">{registering ? 'Đăng ký học sinh' : ui.login.title}</h1>
-      <p className="clp-muted">
-        {registering
-          ? 'Tạo tài khoản để xin tham gia khóa học. Bạn được đăng nhập ngay và vào học sau khi được duyệt.'
-          : 'Đăng nhập bằng tài khoản XueXiHanyu của bạn.'}
-      </p>
-
-      {error ? (
-        <p className="clp-error" role="alert">
-          {error}
+      <CulturalWelcome />
+      <div className="cultural-auth">
+        <WorkspaceBrand />
+        <p className="ink-eyebrow">Mỗi ngày, hiểu thêm một chút</p>
+        <h2 id="login-heading">{registering ? 'Đăng ký học sinh' : ui.login.title}</h2>
+        <p className="clp-muted">
+          {registering
+            ? 'Tạo tài khoản để xin tham gia khóa học. Bạn được đăng nhập ngay và vào học sau khi được duyệt.'
+            : 'Đăng nhập bằng tài khoản XueXiHanyu của bạn.'}
         </p>
-      ) : null}
 
-      <form ref={formRef} onSubmit={onSubmit} noValidate aria-busy={busy}>
-        <div className="clp-field">
-          <label htmlFor="login-name">{ui.login.login}</label>
-          <input
-            id="login-name"
-            className="clp-input"
-            name="login"
-            autoComplete="username"
-            autoCapitalize="none"
-            spellCheck={false}
-            readOnly={busy}
-            required
-          />
-        </div>
-        <div className="clp-field">
-          <label htmlFor="login-password">{ui.login.passwordLabel}</label>
-          <input
-            id="login-password"
-            className="clp-input"
-            name="password"
-            type="password"
-            autoComplete={registering ? 'new-password' : 'current-password'}
-            readOnly={busy}
-            required
-          />
-        </div>
-        {registering && (
+        {error ? (
+          <p className="clp-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <form ref={formRef} onSubmit={onSubmit} noValidate aria-busy={busy}>
           <div className="clp-field">
-            <label htmlFor="signup-confirm">Xác nhận mật khẩu</label>
+            <label htmlFor="login-name">{ui.login.login}</label>
             <input
-              id="signup-confirm"
+              id="login-name"
               className="clp-input"
-              type="password"
-              name="confirmPassword"
-              autoComplete="new-password"
+              name="login"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               readOnly={busy}
               required
             />
-            <p className="clp-muted">Tên đăng nhập là email. Mật khẩu từ 8–128 ký tự.</p>
           </div>
-        )}
-        <div className="clp-actions">
-          <button type="submit" className="clp-button" disabled={busy}>
-            {busy ? 'Đang xử lý…' : registering ? 'Tạo tài khoản học sinh' : ui.login.title}
+          <div className="clp-field">
+            <label htmlFor="login-password">{ui.login.passwordLabel}</label>
+            <input
+              id="login-password"
+              className="clp-input"
+              name="password"
+              type="password"
+              autoComplete={registering ? 'new-password' : 'current-password'}
+              readOnly={busy}
+              required
+            />
+          </div>
+          {registering && (
+            <div className="clp-field">
+              <label htmlFor="signup-confirm">Xác nhận mật khẩu</label>
+              <input
+                id="signup-confirm"
+                className="clp-input"
+                type="password"
+                name="confirmPassword"
+                autoComplete="new-password"
+                readOnly={busy}
+                required
+              />
+              <p className="clp-muted">Tên đăng nhập là email. Mật khẩu từ 8–128 ký tự.</p>
+            </div>
+          )}
+          <div className="clp-actions">
+            <button type="submit" className="clp-button" disabled={busy}>
+              {busy ? 'Đang xử lý…' : registering ? 'Tạo tài khoản học sinh' : ui.login.title}
+            </button>
+          </div>
+        </form>
+        <p>
+          <button
+            type="button"
+            className="clp-button clp-button--secondary"
+            disabled={busy}
+            onClick={() => {
+              clearPasswords(formRef.current);
+              setRegistering(!registering);
+              setError(null);
+            }}
+          >
+            {registering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký học sinh'}
           </button>
-        </div>
-      </form>
-      <p>
-        <button
-          type="button"
-          className="clp-button clp-button--secondary"
-          disabled={busy}
-          onClick={() => {
-            clearPasswords(formRef.current);
-            setRegistering(!registering);
-            setError(null);
-          }}
-        >
-          {registering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký học sinh'}
-        </button>
-      </p>
+        </p>
+      </div>
     </section>
   );
 }

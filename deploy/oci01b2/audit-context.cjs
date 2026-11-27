@@ -20,7 +20,7 @@ function audit(root) {
       )
         throw Error('Forbidden context artifact: ' + rel);
       const allowed =
-        /^(package(?:-lock)?\.json|apps\/(api|web)\/(package\.json|tsconfig[^/]*\.json|nest-cli\.json|vite\.config\.ts|index\.html|src\/.+)|prisma\/(schema\.prisma|migrations\/(migration_lock\.toml|[^/]+\/migration\.sql))|deploy\/oci01b2\/(?:[^/]+\.Dockerfile|runtime\.cjs|healthcheck\.cjs|audit-context\.cjs|tsconfig\.api-build\.json|nginx\.conf|http\.conf|locations\.conf))$/;
+        /^(package(?:-lock)?\.json|apps\/(api|web)\/(package\.json|tsconfig[^/]*\.json|nest-cli\.json|vite\.config\.ts|index\.html|src\/.+|public\/templates\/[^/]+\.(?:csv|json))|prisma\/(schema\.prisma|migrations\/(migration_lock\.toml|[^/]+\/migration\.sql))|deploy\/oci01b2\/(?:[^/]+\.Dockerfile|runtime\.cjs|healthcheck\.cjs|audit-context\.cjs|tsconfig\.api-build\.json|nginx\.conf|http\.conf|locations\.conf))$/;
       if (!allowed.test(rel)) throw Error('Unexpected context path: ' + rel);
       const text = fs.readFileSync(full, 'utf8');
       if (

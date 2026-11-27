@@ -1,0 +1,14 @@
+# IMPORT-01 — Import lessons into the existing editor
+
+Checkpoint: source implementation, independent review, and Owner-requested Web-only rollout to https://xuexihanyu.online on nam@100.100.154.92.
+Authorization: Owner request on 27/11/2026 approves adding the previously proposed JSON/CSV import to the current lesson form. Owner supplied the live domain/homelab and directed reuse of the PC's configured SSH access. SSH resolved to nam, port22, the existing named key and known-host verification.
+
+Objective: prepare one lesson offline and import it without retyping individual fields.
+In scope: UTF-8 JSON/CSV templates, local parsing/validation, preview, explicit append/replace, unchanged existing draft/save/publish API, downloadable JSON copy of current edits, Vietnamese instructions and regression tests.
+Out of scope: arbitrary HTML execution/conversion, batch course creation, session-policy changes, browser draft persistence, recovery of historical lost data, schema/migrations, AI, grading/mastery changes, automatic publication.
+Contracts: AGENTS.md; ADR-001/003/004/005; existing content domain validation and CORE-01 revision/ownership/CSRF save contract.
+Architecture: browser converts files to the current LessonDocument items; no file upload endpoint or persistence access. Apply only changes editor state. Save/publish remain explicit existing actions. Append preserves current metadata/items/IDs; replace retains lesson identity/revision and changes metadata/items only. Import never takes identity, author, visibility or revision from a file.
+Allowed files: web curriculum components/helpers, corresponding tests, public import templates, this contract and IMPORT-01 review/handoff documentation.
+Acceptance: both templates parse; Chinese/Pinyin/Vietnamese and quoted CSV newlines round-trip; all five existing item kinds; invalid files leave editor untouched; append/replace are explicit; maximum 100 resulting items, 200-character core fields, 64 KiB input; existing lesson identity/revision preserved; no save or publication on file selection/apply; editor download is importable JSON.
+Required checks: parser/application regressions, browser import/preview/apply/save interaction using synthetic API fixtures when available, targeted curriculum tests, independent review/fixes, full Web/API automated unit suites, lint/typecheck/Web production build and changed-file formatting.
+Security/data: reject unsupported structure and unsafe media URLs; render text through React; no HTML injection or script execution; file data stays browser-local until normal authenticated save; no new dependencies/schema/config. No real student data or live DB writes during validation. Deployment requires the actual runtime target, revision and access; do not reuse hardcoded Mac deployment guards against another target.

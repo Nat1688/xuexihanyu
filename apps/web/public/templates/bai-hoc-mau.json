@@ -1,0 +1,19 @@
+{
+  "title": "Bài 1 — Chào hỏi",
+  "description": "Học cách chào hỏi và giới thiệu tên.",
+  "items": [
+    {
+      "kind": "VOCABULARY",
+      "simplified": "你好",
+      "pinyin": "nǐ hǎo",
+      "meaning": "Xin chào",
+      "reference": { "example": "你好！我叫小明。— Xin chào! Tôi tên là Tiểu Minh." }
+    },
+    {
+      "kind": "GRAMMAR",
+      "simplified": "我叫……",
+      "meaning": "Tôi tên là…",
+      "reference": { "example": "我叫小明。— Tôi tên là Tiểu Minh." }
+    }
+  ]
+}
