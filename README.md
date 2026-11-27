@@ -25,16 +25,16 @@ Học sinh tự đăng ký với quyền STUDENT và đăng nhập ngay; gửi y
 
 Node.js >=20, npm workspaces, PostgreSQL. Cài dependency bằng `npm ci`, sinh Prisma client bằng `npm run db:generate`.
 
-| Lệnh | Mục đích |
-|---|---|
-| `npm run dev -w @clp/web` | Chạy Vite SPA |
-| `npm run start:dev -w @clp/api` | Chạy API với cấu hình local do developer cung cấp |
-| `npm run typecheck` | Kiểm tra TypeScript |
-| `npm run lint` | Kiểm tra ESLint |
-| `npm run build` | Build API và SPA |
-| `npm test` | Unit và API tests không cần PostgreSQL |
-| `npm run test:integration` | Bộ PostgreSQL cần các target cô lập được cấu hình tường minh |
-| `npm run format:check` | Kiểm tra định dạng toàn repository; xem các lỗi baseline trong bàn giao |
+| Lệnh                            | Mục đích                                                                |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `npm run dev -w @clp/web`       | Chạy Vite SPA                                                           |
+| `npm run start:dev -w @clp/api` | Chạy API với cấu hình local do developer cung cấp                       |
+| `npm run typecheck`             | Kiểm tra TypeScript                                                     |
+| `npm run lint`                  | Kiểm tra ESLint                                                         |
+| `npm run build`                 | Build API và SPA                                                        |
+| `npm test`                      | Unit và API tests không cần PostgreSQL                                  |
+| `npm run test:integration`      | Bộ PostgreSQL cần các target cô lập được cấu hình tường minh            |
+| `npm run format:check`          | Kiểm tra định dạng toàn repository; xem các lỗi baseline trong bàn giao |
 
 Không chạy migration/seed/reset trên Local Trial hoặc database đang phục vụ người dùng. Không lấy cấu hình của Mac mini để chạy thử workspace này. Demo CORE-01 tạo PostgreSQL riêng và tự dừng; hướng dẫn nằm trong tài liệu bàn giao.
 
@@ -43,3 +43,9 @@ Không chạy migration/seed/reset trên Local Trial hoặc database đang phụ
 Câu hỏi luyện tập sử dụng bộ sinh/chấm CP-02/CP-05 từ nội dung có sẵn; chưa có ngân hàng câu hỏi tùy ý. Hình/âm thanh dùng URL HTTPS; chưa có upload/storage. Giao theo danh sách lớp dùng assignment hiện có, tối đa 200 học viên đang hiển thị, không có transaction chung cho cả lớp; lỗi một phần được thông báo. Bản nháp mới của một bài đã xuất bản tạm ngừng khả năng truy cập bài đó đến khi xuất bản lại.
 
 Các tài liệu checkpoint CP-00 đến CP-06 giữ vai trò hồ sơ lịch sử và hợp đồng module; README này mô tả trạng thái source hiện tại.
+
+## DICT02–04 — Source chờ Independent Review (26/11/2026)
+
+Đã tích hợp native Từ điển/Tiếng Trung chuyên ngành vào Student/Teacher UI và ADMIN import nội bộ, cùng API/Prisma migration12 additive. Kiểm thử disposable PASS; chưa deploy lên xuexihanyu.online. Corpus thật chưa hiệu đính/quyền sử dụng chưa xác nhận, không tự xuất bản. Notebook/teacher sets/CMS publication đầy đủ là milestone sau.
+
+Xem [module docs](docs/Dictionary/README.md), [bàn giao](docs/Review/DICT-02-04-HANDOFF.md) và [release/rollback gates](docs/Dictionary/HOMELAB-RELEASE-PLAN.md). Source này có UI06 uncommitted overlay, không phải chỉ commit b191d162; dùng frozen review manifest khi tái tạo. Không dùng guard/profile Mac để migrate homelab.

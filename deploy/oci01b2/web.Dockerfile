@@ -24,9 +24,9 @@ RUN VITE_API_BASE_URL=/api npm run build -w @clp/web
 FROM ${NGINX_IMAGE} AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY deploy/oci01b2/nginx.conf /etc/nginx/nginx.conf
-COPY deploy/oci01b2/http.conf /etc/nginx/conf.d/default.conf
-COPY deploy/oci01b2/locations.conf /etc/nginx/clp-locations.conf
+COPY --chmod=0644 deploy/oci01b2/nginx.conf /etc/nginx/nginx.conf
+COPY --chmod=0644 deploy/oci01b2/http.conf /etc/nginx/conf.d/default.conf
+COPY --chmod=0644 deploy/oci01b2/locations.conf /etc/nginx/clp-locations.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 USER nginx
 EXPOSE 8080 8443

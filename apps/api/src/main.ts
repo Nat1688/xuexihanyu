@@ -67,7 +67,14 @@ async function bootstrap(): Promise<void> {
     origin: [config.SPA_ORIGIN],
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-Id'],
+    allowedHeaders: [
+      'Content-Type',
+      'X-CSRF-Token',
+      'X-Request-Id',
+      'X-Dictionary-Format',
+      'X-Dictionary-Filename',
+      'X-Dictionary-Confirm',
+    ],
     maxAge: 600,
   });
 

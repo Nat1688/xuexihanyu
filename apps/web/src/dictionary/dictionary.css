@@ -1,0 +1,175 @@
+.dict-page {
+  margin-top: 16px;
+}
+.dict-publication fieldset {
+  min-width: 0;
+}
+.dict-publication label,
+.dict-source-review {
+  margin-block: 16px;
+}
+.dict-source-review {
+  padding: 14px;
+  border: 1px solid var(--clp-border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.dict-publication .clp-actions {
+  flex-wrap: wrap;
+}
+.dict-heading {
+  margin: 28px 0;
+}
+.dict-heading h1 {
+  margin: 8px 0;
+}
+.dict-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+.dict-query {
+  grid-column: 1 / -1;
+}
+.dict-page label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.dict-page input,
+.dict-page select,
+.dict-page textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--clp-border);
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+  color: var(--clp-text);
+}
+.dict-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.dict-entry,
+.dict-category {
+  padding: 22px;
+  border: 1px solid var(--clp-border);
+  border-radius: 12px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.dict-entry h2,
+.dict-detail h2 {
+  font-family: system-ui, sans-serif;
+  font-size: 1.8rem;
+  margin: 0 0 8px;
+}
+.dict-pinyin {
+  color: #526779;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.dict-senses p {
+  margin: 8px 0;
+}
+.dict-senses > div + div {
+  border-top: 1px solid var(--clp-border);
+  padding-top: 8px;
+}
+.dict-entry .clp-actions {
+  margin-top: 20px;
+}
+.dict-pagination {
+  margin: 24px 0 0;
+  align-items: center;
+}
+.dict-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+.dict-category {
+  display: grid;
+  text-align: left;
+  gap: 10px;
+  font: inherit;
+  color: var(--clp-text);
+  cursor: pointer;
+  background: #f5f8fb;
+}
+.dict-category small {
+  color: var(--clp-muted);
+}
+.dict-detail {
+  overflow-wrap: anywhere;
+}
+.dict-detail h2 {
+  margin-top: 24px;
+}
+.dict-import {
+  margin-bottom: 24px;
+  padding: 18px;
+  background: #f5f8fb;
+  border: 1px solid var(--clp-border);
+  border-radius: 12px;
+}
+.dict-import summary {
+  cursor: pointer;
+  font-weight: 650;
+  min-height: 44px;
+}
+.dict-import fieldset {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+}
+.dict-import .dict-confirm {
+  display: flex;
+  align-items: start;
+  font-weight: 400;
+}
+.dict-confirm input {
+  width: 20px;
+  min-height: 20px;
+  flex-shrink: 0;
+}
+.dict-report {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.dict-report dt {
+  font-size: 0.85rem;
+}
+.dict-report dd {
+  margin: 8px 0;
+  font-size: 1.4rem;
+}
+@media (max-width: 760px) {
+  .dict-results,
+  .dict-category-grid {
+    grid-template-columns: 1fr;
+  }
+  .dict-filters,
+  .dict-report {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .dict-filters {
+    grid-template-columns: 1fr;
+  }
+  .dict-page {
+    padding: 20px;
+  }
+  .dict-entry {
+    padding: 18px;
+  }
+}

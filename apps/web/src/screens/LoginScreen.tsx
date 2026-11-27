@@ -9,6 +9,8 @@ import { type FormEvent, useState } from 'react';
 
 import { studentError, ui } from '../ui-vi';
 import { ApiError, request, studentApi, type Principal } from '../api/client';
+import { WorkspaceBrand } from '../WorkspaceBrand';
+import { InkArtwork } from '../InkArtwork';
 
 export interface LoginScreenProps {
   onAuthenticated: (principal: Principal) => void;
@@ -58,7 +60,10 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   }
 
   return (
-    <section aria-labelledby="login-heading" className="clp-card">
+    <section aria-labelledby="login-heading" className="clp-card ink-login">
+      <WorkspaceBrand />
+      <InkArtwork kind="landscape" />
+      <p className="ink-eyebrow">Mỗi ngày, hiểu thêm một chút</p>
       <h1 id="login-heading">{registering ? 'Đăng ký học sinh' : ui.login.title}</h1>
       <p className="clp-muted">
         {registering

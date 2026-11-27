@@ -1,3 +1,5 @@
+import { Dictionary, type DictionaryMode } from './dictionary/Dictionary';
+import { StudentReturn } from './StudentReturn';
 import { LearningTools } from './learning-tools/LearningTools';
 /**
  * CLP SPA root (CP-00 skeleton + CP-05 student MVP).
@@ -11,11 +13,17 @@ import { LearningTools } from './learning-tools/LearningTools';
  * All privileged calls are independently authorised server-side.
  */
 import { studentError, ui } from './ui-vi';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, studentApi, type Principal, type ResultView } from './api/client';
-import { ExerciseScreen } from './screens/ExerciseScreen';
-import { forgetExercise, recalledExercise, rememberExercise } from './exercise-resume';
+import { ExerciseScreen, type ExerciseDraft } from './screens/ExerciseScreen';
+import {
+  forgetExercise,
+  isExercisePaused,
+  pauseExercise,
+  recalledExercise,
+  rememberExercise,
+} from './exercise-resume';
 import { LoginScreen } from './screens/LoginScreen';
 import { ResultScreen } from './screens/ResultScreen';
 import { TodayScreen } from './screens/TodayScreen';
@@ -40,17 +48,20 @@ export function App() {
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [step, setStep] = useState<Step>({ view: 'boot' });
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [dictionaryMode, setDictionaryMode] = useState<DictionaryMode | null>(null);
   const [nextBusy, setNextBusy] = useState(false);
   const [teacherBusy, setTeacherBusy] = useState(false);
+  const [exerciseBusy, setExerciseBusy] = useState(false);
+  const drafts = useRef<Record<string, ExerciseDraft>>({});
   useEffect(() => {
-    if (!teacherBusy) return;
+    if (!teacherBusy && !exerciseBusy) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [teacherBusy]);
+  }, [teacherBusy, exerciseBusy]);
   const [nextError, setNextError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,7 +73,7 @@ export function App() {
         setPrincipal(me);
         const resumable = me && canStudy(me) ? recalledExercise(sessionStorage) : null;
         setStep(
-          me && resumable
+          me && resumable && !isExercisePaused(sessionStorage, resumable)
             ? { view: 'exercise', sessionId: resumable }
             : {
                 view: me
@@ -84,10 +95,12 @@ export function App() {
   }, []);
 
   const toLogin = useCallback(() => {
+    drafts.current = {};
     forgetExercise(sessionStorage);
     setPrincipal(null);
     setTeacherBusy(false);
     setNextError(null);
+    setDictionaryMode(null);
     setStep({ view: 'login' });
   }, []);
 
@@ -115,26 +128,42 @@ export function App() {
   }, [toLogin]);
 
   const onResult = useCallback((result: ResultView) => {
-    if (result.integrityStatus === 'COMPLETE') forgetExercise(sessionStorage);
+    delete drafts.current[result.sessionId];
+    if (
+      result.integrityStatus === 'COMPLETE' &&
+      recalledExercise(sessionStorage) === result.sessionId
+    )
+      forgetExercise(sessionStorage);
     setNextError(null);
     setStep({ view: 'result', result });
   }, []);
+  const exerciseUnavailable = useCallback(() => {
+    const id = recalledExercise(sessionStorage);
+    if (id) delete drafts.current[id];
+    forgetExercise(sessionStorage);
+    setStep({ view: 'student' });
+  }, []);
+  const currentDraft =
+    step.view === 'exercise' ? (drafts.current[step.sessionId] ??= {}) : undefined;
+  const inWorkspace = step.view === 'teacher' || step.view === 'student';
 
   return (
     <>
       <a className="clp-skip-link" href="#clp-main">
         {ui.app.skip}
       </a>
-      <div className={step.view === 'teacher' ? 'clp-shell tw-shell' : 'clp-shell'}>
+      <div
+        className={
+          step.view === 'teacher' || step.view === 'student' ? 'clp-shell tw-shell' : 'clp-shell'
+        }
+      >
         <header
-          className={step.view === 'teacher' && !toolsOpen ? 'clp-header--teacher' : undefined}
-          hidden={step.view === 'teacher' && !toolsOpen && !(principal && canStudy(principal))}
+          className={inWorkspace && !toolsOpen ? 'clp-header--teacher' : undefined}
+          hidden={
+            inWorkspace && !toolsOpen && !(principal && canTeach(principal) && canStudy(principal))
+          }
         >
-          <p
-            className="clp-muted"
-            style={{ margin: 0 }}
-            hidden={step.view === 'teacher' && !toolsOpen}
-          >
+          <p className="clp-muted" style={{ margin: 0 }} hidden={inWorkspace && !toolsOpen}>
             {ui.app.title}
           </p>
           {principal && canTeach(principal) && canStudy(principal) ? (
@@ -142,7 +171,7 @@ export function App() {
               <button
                 className="clp-button clp-button--secondary"
                 aria-pressed={step.view === 'teacher'}
-                disabled={teacherBusy}
+                disabled={teacherBusy || exerciseBusy}
                 onClick={() => setStep({ view: 'teacher' })}
               >
                 Giáo viên
@@ -150,13 +179,8 @@ export function App() {
               <button
                 className="clp-button clp-button--secondary"
                 aria-pressed={step.view !== 'teacher'}
-                disabled={teacherBusy}
-                onClick={() => {
-                  const resumable = recalledExercise(sessionStorage);
-                  setStep(
-                    resumable ? { view: 'exercise', sessionId: resumable } : { view: 'student' },
-                  );
-                }}
+                disabled={teacherBusy || exerciseBusy}
+                onClick={() => setStep({ view: 'student' })}
               >
                 Học viên
               </button>
@@ -170,6 +194,7 @@ export function App() {
                 type="button"
                 className="clp-button clp-button--secondary"
                 data-learning-tools-trigger
+                disabled={exerciseBusy}
                 onClick={() => setToolsOpen(true)}
               >
                 Công cụ học tập
@@ -180,6 +205,7 @@ export function App() {
             <LearningTools
               onClose={() => {
                 setToolsOpen(false);
+                setDictionaryMode(null);
                 requestAnimationFrame(() =>
                   document
                     .querySelector<HTMLButtonElement>('[data-learning-tools-trigger]')
@@ -188,7 +214,15 @@ export function App() {
               }}
             />
           ) : null}
-          <div hidden={toolsOpen}>
+          {dictionaryMode && principal ? (
+            <Dictionary
+              key={dictionaryMode}
+              mode={dictionaryMode}
+              onExpired={toLogin}
+              onClose={() => setDictionaryMode(null)}
+            />
+          ) : null}
+          <div hidden={toolsOpen || dictionaryMode !== null}>
             {step.view === 'boot' ? <p role="status">{ui.common.loading}</p> : null}
 
             {step.view === 'login' ? (
@@ -207,6 +241,7 @@ export function App() {
                 key={principal.publicId}
                 principal={principal}
                 onExpired={toLogin}
+                onDictionary={setDictionaryMode}
                 onTools={() => setToolsOpen(true)}
                 onBusyChange={setTeacherBusy}
               />
@@ -220,12 +255,7 @@ export function App() {
 
             {step.view === 'today' && principal ? (
               <>
-                <button
-                  className="clp-button clp-button--secondary"
-                  onClick={() => setStep({ view: 'student' })}
-                >
-                  Về không gian học viên
-                </button>
+                <StudentReturn onClick={() => setStep({ view: 'student' })} />
                 <p>Tự học độc lập — không phải danh sách bài được giao theo lớp.</p>
                 <PreviewEntry onOpen={() => setStep({ view: 'lesson-preview' })} />
                 <TodayScreen
@@ -237,6 +267,18 @@ export function App() {
             ) : null}
             {step.view === 'student' && principal && canStudy(principal) ? (
               <StudentWorkspace
+                onResumeExercise={
+                  recalledExercise(sessionStorage)
+                    ? () => {
+                        const id = recalledExercise(sessionStorage);
+                        if (id) {
+                          rememberExercise(sessionStorage, id);
+                          setStep({ view: 'exercise', sessionId: id });
+                        }
+                      }
+                    : undefined
+                }
+                onDictionary={setDictionaryMode}
                 onTools={() => setToolsOpen(true)}
                 accountId={principal.publicId}
                 onResult={onResult}
@@ -254,23 +296,23 @@ export function App() {
 
             {step.view === 'exercise' ? (
               <ExerciseScreen
+                key={step.sessionId}
+                draft={currentDraft}
                 sessionId={step.sessionId}
                 onResult={onResult}
-                onExpired={() => {
-                  forgetExercise(sessionStorage);
-                  setStep({ view: 'today' });
+                onExpired={toLogin}
+                onUnavailable={exerciseUnavailable}
+                onBusyChange={setExerciseBusy}
+                onLeave={() => {
+                  pauseExercise(sessionStorage, step.sessionId);
+                  setStep({ view: 'student' });
                 }}
               />
             ) : null}
 
             {step.view === 'result' ? (
               <>
-                <button
-                  className="clp-button clp-button--secondary"
-                  onClick={() => setStep({ view: 'student' })}
-                >
-                  Về bài được giao và lớp học
-                </button>
+                <StudentReturn onClick={() => setStep({ view: 'student' })} />
                 <p>
                   Nút bài tiếp theo sử dụng hàng đợi tự học, không xác nhận hoàn thành bài được
                   giao.

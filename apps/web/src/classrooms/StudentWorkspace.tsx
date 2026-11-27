@@ -1,3 +1,4 @@
+import type { DictionaryMode } from '../dictionary/Dictionary';
 import { CourseAdmissions } from '../admissions/CourseAdmissions';
 import { PublishedLesson } from '../curriculum/Lesson';
 import type { ClassAssignment } from '../api/classrooms';
@@ -7,6 +8,11 @@ import { classroomApi, classroomError } from '../api/classrooms';
 import { useResource } from '../teacher/useResource';
 import { displayDate } from '../teacher/model';
 import { displayNumber } from '../ui-vi';
+import { WorkspaceBrand } from '../WorkspaceBrand';
+import { TeacherNavIcon } from '../teacher/TeacherNavIcon';
+import { StudentDashboard } from './StudentDashboard';
+import { InkArtwork } from '../InkArtwork';
+import { Flashcards } from '../flashcards/Flashcards';
 
 function stored(key: string): string | null {
   try {
@@ -23,14 +29,25 @@ function remember(key: string, value: string | null) {
     /* Storage may be disabled. Server access remains authoritative. */
   }
 }
-type Tab = 'courses' | 'classes' | 'join' | 'assignments' | 'progress';
+type Tab = 'overview' | 'courses' | 'classes' | 'join' | 'assignments' | 'progress' | 'flashcards';
 const tabs: [Tab, string][] = [
+  ['overview', 'Tổng quan'],
   ['courses', 'Đăng ký khóa học'],
   ['classes', 'Lớp của tôi'],
   ['join', 'Tham gia lớp'],
   ['assignments', 'Bài được giao'],
   ['progress', 'Tiến độ'],
+  ['flashcards', 'Flashcard ôn tập'],
 ];
+const icons = {
+  overview: 'home',
+  courses: 'curriculum',
+  classes: 'classes',
+  join: 'admissions',
+  assignments: 'assign',
+  progress: 'progress',
+  flashcards: 'flashcards',
+} as const;
 export function StudentWorkspace({
   onExpired,
   onSelfStudy,
@@ -38,7 +55,11 @@ export function StudentWorkspace({
   accountId,
   onResult,
   onTools,
+  onResumeExercise,
+  onDictionary,
 }: {
+  onDictionary?: (mode: DictionaryMode) => void;
+  onResumeExercise?: () => void;
   onTools?: () => void;
   accountId?: string;
   onResult?: (result: ResultView) => void;
@@ -47,9 +68,7 @@ export function StudentWorkspace({
   onExercise: (value: ExerciseView) => void;
 }) {
   const resumeKey = accountId ? `xuexihanyu:reading:${accountId}` : '';
-  const [tab, setTab] = useState<Tab>(() =>
-    resumeKey && stored(resumeKey) ? 'assignments' : 'courses',
-  );
+  const [tab, setTab] = useState<Tab>('overview');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function logout() {
@@ -66,56 +85,129 @@ export function StudentWorkspace({
     }
   }
   return (
-    <section className="student-workspace">
-      <h1>Không gian học viên</h1>
-      <nav className="clp-actions" aria-label="Điều hướng học viên">
-        {tabs.map(([id, label]) => (
+    <section className="student-workspace ink-student">
+      <aside className="ink-student-sidebar">
+        <WorkspaceBrand />
+        <nav className="ink-student-nav" aria-label="Điều hướng học viên">
+          {tabs.map(([id, label]) => (
+            <button
+              className={tab === id ? 'tw-nav active' : 'tw-nav'}
+              key={id}
+              disabled={busy}
+              aria-pressed={tab === id}
+              aria-current={tab === id ? 'page' : undefined}
+              onClick={() => setTab(id)}
+            >
+              <TeacherNavIcon name={icons[id]} />
+              <span>{label}</span>
+            </button>
+          ))}
+          {onDictionary ? (
+            <>
+              <button className="tw-nav" disabled={busy} onClick={() => onDictionary('reference')}>
+                <TeacherNavIcon name="dictionary" />
+                <span>Từ điển</span>
+              </button>
+              <button
+                className="tw-nav"
+                disabled={busy}
+                onClick={() => onDictionary('specialties')}
+              >
+                <TeacherNavIcon name="specialties" />
+                <span>Tiếng Trung chuyên ngành</span>
+              </button>
+            </>
+          ) : null}
+          {onTools ? (
+            <button
+              type="button"
+              className="tw-nav"
+              data-learning-tools-trigger
+              disabled={busy}
+              onClick={onTools}
+            >
+              <TeacherNavIcon name="tools" />
+              <span>Công cụ học tập</span>
+            </button>
+          ) : null}
+          <button className="tw-nav" disabled={busy} onClick={onSelfStudy}>
+            <TeacherNavIcon name="selfStudy" />
+            <span>Tự học</span>
+          </button>
+        </nav>
+        <div className="ink-student-profile">
+          <span className="ink-eyebrow">Không gian học viên</span>
+          <p className="clp-muted">Từng bài học nhỏ. Một hành trình dài.</p>
           <button
             className="clp-button clp-button--secondary"
-            key={id}
             disabled={busy}
-            aria-pressed={tab === id}
-            onClick={() => setTab(id)}
+            onClick={() => void logout()}
           >
-            {label}
+            Đăng xuất
           </button>
-        ))}
-        {onTools ? (
-          <button
-            type="button"
-            className="clp-button clp-button--secondary"
-            data-learning-tools-trigger
-            disabled={busy}
-            onClick={onTools}
-          >
-            Công cụ học tập
-          </button>
+        </div>
+      </aside>
+      <div className="ink-student-content">
+        <header className="ink-student-heading">
+          <p className="ink-eyebrow">Học tiếng Trung cùng XueXiHanyu</p>
+          <h1>Không gian học viên</h1>
+          <p className="ink-motto">
+            <span>Mỗi ngày, hiểu thêm một chút.</span>
+            <InkArtwork />
+          </p>
+        </header>
+        {error ? <p role="alert">{error}</p> : null}
+        {onResumeExercise ? (
+          <aside className="ink-resume-notice">
+            <div>
+              <strong>Bạn có bài tập đang làm dở</strong>
+              <p>
+                Tiếp tục cùng bài tập; hệ thống sẽ kiểm tra và khôi phục kết quả nếu bạn đã nộp.
+              </p>
+            </div>
+            <button className="clp-button" disabled={busy} onClick={onResumeExercise}>
+              Tiếp tục bài đang làm
+            </button>
+          </aside>
         ) : null}
-        <button className="clp-button clp-button--secondary" disabled={busy} onClick={onSelfStudy}>
-          Tự học
-        </button>
-        <button
-          className="clp-button clp-button--secondary"
-          disabled={busy}
-          onClick={() => void logout()}
-        >
-          Đăng xuất
-        </button>
-      </nav>
-      {error ? <p role="alert">{error}</p> : null}
-      {tab === 'courses' ? (
-        <CourseAdmissions onExpired={onExpired} />
-      ) : (
-        <StudentSection
-          key={tab}
-          tab={tab}
-          onResult={onResult}
-          resumeKey={resumeKey}
-          onExpired={onExpired}
-          onExercise={onExercise}
-          onBusy={setBusy}
-        />
-      )}
+        {tab === 'overview' ? (
+          <StudentDashboard
+            onFlashcards={() => setTab('flashcards')}
+            onExpired={onExpired}
+            onAssignments={() => setTab('assignments')}
+            onClasses={() => setTab('classes')}
+            onCourses={() => setTab('courses')}
+            onProgress={() => setTab('progress')}
+            onResult={async (id) => {
+              if (busy) return;
+              setBusy(true);
+              setError('');
+              try {
+                onResult?.(await studentApi.result(id));
+              } catch (err) {
+                if (err instanceof ApiError && err.status === 401) onExpired();
+                else setError(classroomError(err));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        ) : tab === 'flashcards' ? (
+          <Flashcards onExpired={onExpired} onOverview={() => setTab('overview')} />
+        ) : tab === 'courses' ? (
+          <CourseAdmissions onExpired={onExpired} />
+        ) : (
+          <StudentSection
+            key={tab}
+            tab={tab}
+            onResult={onResult}
+            resumeKey={resumeKey}
+            onExpired={onExpired}
+            onExercise={onExercise}
+            onBusy={setBusy}
+          />
+        )}
+      </div>
     </section>
   );
 }
@@ -130,7 +222,7 @@ function StudentSection({
 }: {
   resumeKey: string;
   onResult?: (result: ResultView) => void;
-  tab: Tab;
+  tab: Exclude<Tab, 'overview' | 'courses' | 'flashcards'>;
   onExpired: () => void;
   onExercise: (value: ExerciseView) => void;
   onBusy: (value: boolean) => void;

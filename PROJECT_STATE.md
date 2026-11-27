@@ -72,3 +72,17 @@ Prettier passed. Full repository formatting has a known Windows CRLF baseline
 and was not normalized or certified by DS-01. See
 `docs/Operations/DS-01-RECOVERY-REPORT.md` for commands, scope and limitations.
 Preservation branch and private recovery artifacts must be retained.
+
+## DICT02–04 isolated implementation — 26/11/2026
+
+This worktree is codex/dict01-discovery-architecture at b191d162 plus the exact deployed484-file UI06 overlay and dictionary implementation. Original checkout/Main/WIP are preserved. Schema source now has31models/12migrations; this is not a claim that homelab has migrated.
+
+Native Vietnamese dictionary/specialty UI, ADMIN inert import/provenance/review receipts, guarded publication/search/counts and additive migration12 are implemented. Actual disposable import32573rows produced23266headwords/32563senses/33497source associations. Full source verification810API/90Web;17real-stack steps;70packaging/context tests PASS. No learning writes, source rights remainUNKNOWN and contentUNVERIFIED/INTERNAL. See docs/Review/DICT-02-04-HANDOFF.md for exact rerun/inherited evidence and limits.
+
+No commit/push/merge/deploy, no live DB migration/import. Independent Review pending. Homelab release remainsHOLD until native runtime adapter/image/proxy/backup/rollback compatibility gates and separate Owner approval. DICT05–08 are not automatically opened; no corpus publication or specialist sign-off has occurred.
+
+## DICT07-P — group publication implementation, 26/11/2026
+
+The preceding DICT02–04 paragraph is historical source-review state. Subsequent Owner-authorized homelab deployment and internal import completed separately: runtime schema12,23266headwords/32563senses, all INTERNAL/UNVERIFIED and source rights UNKNOWN. Encrypted backup and restore evidence is retained in artifacts/dict-deployment-20261126 in the original workspace. No corpus publication has been authorized or performed.
+
+Owner now requested publication controls and selected whole specialty groups. Separate worktree codex/dict07-publication reuses the frozen517-file source. Implements ADMIN category/subtree preview, explicit reviewed publication/unpublication, source rights evidence/confirmation, revisions and audit using existing tables. No schema/migration/dependency changes; no learning evidence writes. Source and test scope: docs/Planning/DICT-07-PUBLICATION-TASK.md. Current verification and residual risks: docs/Review/DICT07-PUBLICATION.md. New code awaits Independent Review and is not deployed; no staging/commit/push/merge or changes to existing WIP/live data.

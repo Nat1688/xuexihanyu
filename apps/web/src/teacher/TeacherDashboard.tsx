@@ -1,4 +1,6 @@
+import { TeacherNavIcon } from './TeacherNavIcon';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { InkArtwork } from '../InkArtwork';
 import { teacherApi, type TeacherClass } from '../api/teacher';
 import { displayNumber } from '../ui-vi';
 import { CreateClassForm } from './TeacherForms';
@@ -38,8 +40,10 @@ export function TeacherDashboard({
   }
   return (
     <>
-      <div className="tw-section-heading tw-dashboard-heading">
+      <div className="tw-section-heading tw-dashboard-heading ink-teacher-hero">
+        <InkArtwork kind="landscape" />
         <div>
+          <span className="ink-teacher-eyebrow">Kết nối tri thức · Đồng hành cùng học viên</span>
           <h1>Không gian giảng dạy</h1>
           <p className="clp-muted">Chuẩn bị bài học, quản lý lớp và theo dõi tiến độ học viên.</p>
         </div>
@@ -140,15 +144,18 @@ export function TeacherDashboard({
               ) : (
                 <section aria-label="Thống kê giảng dạy">
                   <div className="tw-stats">
-                    {[
-                      ['Lớp học', data.classes],
-                      ['Học viên duy nhất', data.students],
-                      ['Bài học đã xuất bản', data.lessons],
-                      ['Lượt giao bài', data.assignments],
-                    ].map(([label, value]) => (
-                      <div key={label}>
-                        <span>{label}</span>
-                        <strong>{displayNumber(Number(value))}</strong>
+                    {(
+                      [
+                        ['Lớp học', data.classes, 'classes'],
+                        ['Học viên duy nhất', data.students, 'admissions'],
+                        ['Bài học đã xuất bản', data.lessons, 'curriculum'],
+                        ['Lượt giao bài', data.assignments, 'assign'],
+                      ] as const
+                    ).map(([label, value, icon]) => (
+                      <div key={label} className={`ink-teacher-stat ink-teacher-stat--${icon}`}>
+                        <TeacherNavIcon name={icon} />
+                        <span className="ink-teacher-stat-label">{label}</span>
+                        <strong>{displayNumber(value)}</strong>
                       </div>
                     ))}
                   </div>

@@ -267,6 +267,18 @@ async function step(name, run) {
         '8',
         '24',
       ]);
+      const navPaths = await page
+        .locator('.tw-sidebar nav .ink-nav-icon path')
+        .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('d')));
+      assert.equal(new Set(navPaths).size, 7, 'teacher navigation icons remain distinct');
+      assert.equal(await page.locator('.tw-stats .ink-nav-icon').count(), 4);
+      assert.equal(await page.locator('.tw-stats svg:not([aria-hidden="true"])').count(), 0);
+      assert.equal(
+        await page
+          .locator('.ink-teacher-hero')
+          .evaluate((el) => getComputedStyle(el).backgroundColor),
+        'rgb(24, 51, 75)',
+      );
       assert.deepEqual(await page.locator('.tw-overview-summary strong').allTextContents(), [
         '3',
         '9',

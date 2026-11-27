@@ -1,3 +1,4 @@
+import { StudentReturn } from '../StudentReturn';
 /**
  * EXERCISE screen (CP-05).
  *
@@ -16,6 +17,16 @@ export interface ExerciseScreenProps {
   sessionId: string;
   onResult: (result: ResultView) => void;
   onExpired: () => void;
+  onUnavailable?: () => void;
+  onLeave?: () => void;
+  onBusyChange?: (busy: boolean) => void;
+  draft?: ExerciseDraft;
+}
+
+/** In-memory only. Never serialize this to browser storage. */
+export interface ExerciseDraft {
+  answer?: string;
+  submissionToken?: string;
 }
 
 function newSubmissionToken(): string {
@@ -25,35 +36,62 @@ function newSubmissionToken(): string {
   return `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScreenProps) {
+export function ExerciseScreen({
+  sessionId,
+  onResult,
+  onExpired,
+  onUnavailable,
+  onLeave,
+  onBusyChange,
+  draft,
+}: ExerciseScreenProps) {
   const [exercise, setExercise] = useState<ExerciseView | null>(null);
-  const [answer, setAnswer] = useState('');
+  const [answer, setAnswer] = useState(draft?.answer ?? '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const tokenRef = useRef<string>(newSubmissionToken());
+  const tokenRef = useRef<string>(draft?.submissionToken ?? newSubmissionToken());
   const inFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    if (draft) draft.submissionToken = tokenRef.current;
+    return () => {
+      mounted.current = false;
+      onBusyChange?.(false);
+    };
+  }, [draft, onBusyChange]);
+  function changeAnswer(value: string) {
+    setAnswer(value);
+    if (draft) draft.answer = value;
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const loaded = await loadRememberedExercise(studentApi, sessionStorage, sessionId);
+      if (!mounted.current) return;
       setExercise(loaded.exercise);
       if (loaded.result) {
         const result = loaded.result;
         onResult(result);
       }
     } catch (err) {
+      if (!mounted.current) return;
+      if (err instanceof ApiError && err.status === 410 && onUnavailable) {
+        onUnavailable();
+        return;
+      }
       if (err instanceof ApiError && (err.status === 401 || err.status === 410)) {
         onExpired();
         return;
       }
       setError(studentError(err, 'Không thể tải bài tập. Vui lòng thử lại.'));
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
-  }, [sessionId, onResult, onExpired]);
+  }, [sessionId, onResult, onExpired, onUnavailable]);
 
   useEffect(() => {
     void load();
@@ -62,6 +100,7 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
   async function submit() {
     if (inFlight.current || !answer.trim()) return;
     inFlight.current = true;
+    onBusyChange?.(true);
     setSubmitting(true);
     setError(null);
     try {
@@ -74,6 +113,10 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
       );
       onResult(result);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 410 && onUnavailable) {
+        onUnavailable();
+        return;
+      }
       if (err instanceof ApiError && (err.status === 401 || err.status === 410)) {
         onExpired();
         return;
@@ -87,11 +130,26 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
     } finally {
       setSubmitting(false);
       inFlight.current = false;
+      onBusyChange?.(false);
     }
   }
 
   return (
     <section aria-labelledby="exercise-heading" className="clp-card">
+      {onLeave ? (
+        <div className="ink-exercise-navigation">
+          <StudentReturn
+            disabled={submitting}
+            onClick={() => {
+              if (!inFlight.current) onLeave();
+            }}
+          />
+          <p className="clp-muted">
+            Bạn có thể quay lại bài đang làm. Bản nháp chỉ giữ trong tab này, không giữ khi tải lại
+            trang hoặc đăng xuất.
+          </p>
+        </div>
+      ) : null}
       <h1 id="exercise-heading">Bài tập</h1>
 
       {loading ? <p role="status">Đang tải bài tập…</p> : null}
@@ -100,6 +158,11 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
         <p className="clp-error" role="alert">
           {error}
         </p>
+      ) : null}
+      {!loading && !exercise && error ? (
+        <button className="clp-button" onClick={() => void load()}>
+          Thử tải lại bài tập
+        </button>
       ) : null}
 
       {exercise && !exercise.alreadyAnswered ? (
@@ -138,7 +201,8 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
                     name="answer"
                     value={option}
                     checked={answer === option}
-                    onChange={() => setAnswer(option)}
+                    disabled={submitting}
+                    onChange={() => changeAnswer(option)}
                   />
                   <span
                     lang={
@@ -165,7 +229,8 @@ export function ExerciseScreen({ sessionId, onResult, onExpired }: ExerciseScree
                 autoCapitalize="off"
                 spellCheck={false}
                 value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
+                disabled={submitting}
+                onChange={(e) => changeAnswer(e.target.value)}
                 required
               />
             </div>

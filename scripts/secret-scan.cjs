@@ -39,6 +39,19 @@ const ALLOWED_PRISMA_PATHS = [
 // teacher classes/enrollments/assignments/notes. Any other model/table means a
 // later-checkpoint or forbidden schema leaked in.
 const APPROVED_MODELS = new Set([
+  'DictionarySource', // DICT02 approved additive foundation.
+  'DictionarySourceCategory', // DICT02 approved additive foundation.
+  'DictionaryImportBatch', // DICT02 approved additive foundation.
+  'DictionaryEntry', // DICT02 approved additive foundation.
+  'DictionarySense', // DICT02 approved additive foundation.
+  'DictionaryImportItem', // DICT02 approved additive foundation.
+  'DictionarySenseOrigin', // DICT02 approved additive foundation.
+  'DictionaryCategory', // DICT02 approved additive foundation.
+  'DictionaryEntryCategory', // DICT02 approved additive foundation.
+  'DictionaryEntryRevision', // DICT02 approved additive foundation.
+  'DictionaryEntryReport', // DICT02 approved additive foundation.
+  'DictionaryAuditEvent', // DICT02 approved additive foundation.
+
   'User',
   'PasswordCredential',
   'UserRoleAssignment',
@@ -63,6 +76,19 @@ const APPROVED_MODELS = new Set([
 // Approved base tables (CLP-00-05/06 identity+session, CP-01 content, CP-03
 // learning events, CP-04 mastery projection) + Prisma metadata.
 const APPROVED_TABLES = new Set([
+  'dictionary_sources', // DICT02 approved additive foundation.
+  'dictionary_source_categories', // DICT02 approved additive foundation.
+  'dictionary_import_batches', // DICT02 approved additive foundation.
+  'dictionary_entries', // DICT02 approved additive foundation.
+  'dictionary_senses', // DICT02 approved additive foundation.
+  'dictionary_import_items', // DICT02 approved additive foundation.
+  'dictionary_sense_origins', // DICT02 approved additive foundation.
+  'dictionary_categories', // DICT02 approved additive foundation.
+  'dictionary_entry_categories', // DICT02 approved additive foundation.
+  'dictionary_entry_revisions', // DICT02 approved additive foundation.
+  'dictionary_entry_reports', // DICT02 approved additive foundation.
+  'dictionary_audit_events', // DICT02 approved additive foundation.
+
   '_prisma_migrations',
   'courses',
   'learning_items',

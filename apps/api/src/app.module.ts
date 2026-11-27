@@ -1,3 +1,4 @@
+import { DictionaryModule } from './modules/dictionary/dictionary.module';
 import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
@@ -38,6 +39,7 @@ import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 @Module({
   imports: [
     ConfigModule,
+    DictionaryModule,
     PrismaModule,
     FoundationModule,
     FoundationLoggingModule,

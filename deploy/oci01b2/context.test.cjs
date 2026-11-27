@@ -118,7 +118,7 @@ test('all current repository build-context files pass unchanged fail-closed audi
     .filter((f) => included(f));
   assert.ok(files.includes('apps/api/src/main.ts'));
   assert.ok(files.includes('apps/web/src/App.tsx'));
-  assert.equal(files.filter((f) => /migration\.sql$/.test(f)).length, 10); // CL-01 additive migration
+  assert.equal(files.filter((f) => /migration\.sql$/.test(f)).length, 12); // DICT02 additive migration; exact approved chain
   assert.equal(auditFiles(files), files.length);
 });
 test('API and frontend default build paths require successful context-audit stage', () => {

@@ -2,6 +2,9 @@ import {
   loadRememberedExercise,
   recalledExercise,
   rememberExercise,
+  pauseExercise,
+  isExercisePaused,
+  forgetExercise,
   submitRememberedExercise,
   type ExerciseResumeApi,
   type SessionStorageLike,
@@ -53,6 +56,44 @@ function result(): ResultView {
 }
 
 describe('exercise reload recovery', () => {
+  it('late recovery of an old session does not clear the newer paused exercise', async () => {
+    const storage = new MemorySessionStorage();
+    const newer = '10000000-0000-4000-8000-000000000002';
+    rememberExercise(storage, SESSION_ID);
+    const api: ExerciseResumeApi = {
+      exercise: async () => exercise(true),
+      answer: jest.fn(),
+      recoverResult: async () => {
+        rememberExercise(storage, newer);
+        pauseExercise(storage, newer);
+        return result();
+      },
+    };
+    await loadRememberedExercise(api, storage, SESSION_ID);
+    expect(recalledExercise(storage)).toBe(newer);
+    expect(isExercisePaused(storage, newer)).toBe(true);
+  });
+  it('pauses using only an opaque id and resumes the same active session', () => {
+    const storage = new MemorySessionStorage();
+    rememberExercise(storage, SESSION_ID);
+    pauseExercise(storage, SESSION_ID);
+    expect(isExercisePaused(storage, SESSION_ID)).toBe(true);
+    expect(recalledExercise(storage)).toBe(SESSION_ID);
+    expect([...storage.values.values()]).toEqual([SESSION_ID, SESSION_ID]);
+    rememberExercise(storage, SESSION_ID);
+    expect(isExercisePaused(storage, SESSION_ID)).toBe(false);
+    expect(recalledExercise(storage)).toBe(SESSION_ID);
+  });
+  it('clears both active and paused state and rejects non-session pause values', () => {
+    const storage = new MemorySessionStorage();
+    pauseExercise(storage, 'not-a-session');
+    expect(storage.values.size).toBe(0);
+    rememberExercise(storage, SESSION_ID);
+    pauseExercise(storage, SESSION_ID);
+    forgetExercise(storage);
+    expect(storage.values.size).toBe(0);
+    expect(isExercisePaused(storage, SESSION_ID)).toBe(false);
+  });
   it('retains only the session id after a network failure and recovers it after reload', async () => {
     const storage = new MemorySessionStorage();
     rememberExercise(storage, SESSION_ID);

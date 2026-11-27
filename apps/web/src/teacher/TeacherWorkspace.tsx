@@ -1,5 +1,7 @@
+import type { DictionaryMode } from '../dictionary/Dictionary';
 import { TeacherDashboard as Dashboard } from './TeacherDashboard';
 import { TeacherNavIcon } from './TeacherNavIcon';
+import { WorkspaceBrand } from '../WorkspaceBrand';
 import { AdmissionReviews } from '../admissions/CourseAdmissions';
 import { Curriculum } from '../curriculum/Curriculum';
 import { useCallback, useEffect, useState } from 'react';
@@ -29,7 +31,9 @@ export function TeacherWorkspace({
   onExpired,
   onBusyChange,
   onTools,
+  onDictionary,
 }: {
+  onDictionary?: (mode: DictionaryMode) => void;
   onTools?: () => void;
   principal: Principal;
   onExpired: () => void;
@@ -79,12 +83,7 @@ export function TeacherWorkspace({
       style={{ minWidth: 0 }}
     >
       <aside className="tw-sidebar">
-        <div className="tw-brand">
-          <span aria-hidden="true">学</span>
-          <div>
-            XueXiHanyu<small>Dạy và học tiếng Trung</small>
-          </div>
-        </div>
+        <WorkspaceBrand />
         <nav aria-label="Điều hướng giáo viên">
           <button
             className={page.view === 'dashboard' ? 'tw-nav active' : 'tw-nav'}
@@ -120,6 +119,36 @@ export function TeacherWorkspace({
             <TeacherNavIcon name="admissions" />
             <span>Duyệt đăng ký</span>
           </button>
+          {onDictionary ? (
+            <>
+              <button
+                className="tw-nav"
+                disabled={createBusy || dirty}
+                onClick={() => onDictionary('reference')}
+              >
+                <TeacherNavIcon name="dictionary" />
+                <span>Từ điển</span>
+              </button>
+              <button
+                className="tw-nav"
+                disabled={createBusy || dirty}
+                onClick={() => onDictionary('specialties')}
+              >
+                <TeacherNavIcon name="specialties" />
+                <span>Tiếng Trung chuyên ngành</span>
+              </button>
+              {principal.roles.includes('ADMIN') ? (
+                <button
+                  className="tw-nav"
+                  disabled={createBusy || dirty}
+                  onClick={() => onDictionary('admin')}
+                >
+                  <TeacherNavIcon name="dictionary" />
+                  <span>Quản lý từ điển</span>
+                </button>
+              ) : null}
+            </>
+          ) : null}
           {onTools ? (
             <button type="button" className="tw-nav" data-learning-tools-trigger onClick={onTools}>
               <TeacherNavIcon name="tools" />
