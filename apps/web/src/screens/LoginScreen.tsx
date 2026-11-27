@@ -3,9 +3,9 @@
  *
  * Posts credentials to `/auth/login`; the server sets the opaque session
  * cookie plus the CSRF double-submit cookie. Nothing is persisted in web
- * storage and the password is never retained after submit.
+ * storage. Password fields are uncontrolled; credentials are read only on submit.
  */
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 
 import { studentError, ui } from '../ui-vi';
 import { ApiError, request, studentApi, type Principal } from '../api/client';
@@ -18,32 +18,50 @@ export interface LoginScreenProps {
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [registering, setRegistering] = useState(false);
-  const [confirmation, setConfirmation] = useState('');
-  const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitting = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  function clearPasswords(form: HTMLFormElement | null) {
+    form?.querySelectorAll<HTMLInputElement>('input[type="password"]').forEach((input) => {
+      input.value = '';
+    });
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current) return;
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    const login = String(fields.get('login') || '').trim();
+    let password = String(fields.get('password') || '');
+    let confirmation = String(fields.get('confirmPassword') || '');
+    fields.delete('password');
+    fields.delete('confirmPassword');
     setError(null);
+    if (!login || !password) {
+      setError('Vui lòng nhập tên đăng nhập và mật khẩu.');
+      return;
+    }
+    submitting.current = true;
     setBusy(true);
     try {
-      const principal = registering
-        ? (
-            await request<{ user: Principal }>('POST', '/auth/register', {
-              login: login.trim(),
-              password,
-              confirmPassword: confirmation,
-            })
-          ).user
-        : await studentApi.login(login.trim(), password);
-      setPassword('');
-      setConfirmation('');
+      const pending = registering
+        ? request<{ user: Principal }>('POST', '/auth/register', {
+            login,
+            password,
+            confirmPassword: confirmation,
+          }).then((response) => response.user)
+        : studentApi.login(login, password);
+      // The in-flight request needs the credentials; the component does not.
+      password = '';
+      confirmation = '';
+      const principal = await pending;
+      clearPasswords(form);
       onAuthenticated(principal);
     } catch (err) {
-      setPassword('');
-      setConfirmation('');
+      clearPasswords(form);
       setError(
         registering && err instanceof ApiError && err.code.startsWith('REGISTRATION_')
           ? err.message
@@ -55,6 +73,9 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             ),
       );
     } finally {
+      password = '';
+      confirmation = '';
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -77,7 +98,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         </p>
       ) : null}
 
-      <form onSubmit={onSubmit} noValidate>
+      <form ref={formRef} onSubmit={onSubmit} noValidate aria-busy={busy}>
         <div className="clp-field">
           <label htmlFor="login-name">{ui.login.login}</label>
           <input
@@ -87,8 +108,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             autoComplete="username"
             autoCapitalize="none"
             spellCheck={false}
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
+            readOnly={busy}
             required
           />
         </div>
@@ -100,8 +120,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             name="password"
             type="password"
             autoComplete={registering ? 'new-password' : 'current-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            readOnly={busy}
             required
           />
         </div>
@@ -112,16 +131,16 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               id="signup-confirm"
               className="clp-input"
               type="password"
+              name="confirmPassword"
               autoComplete="new-password"
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
+              readOnly={busy}
               required
             />
             <p className="clp-muted">Tên đăng nhập là email. Mật khẩu từ 8–128 ký tự.</p>
           </div>
         )}
         <div className="clp-actions">
-          <button type="submit" className="clp-button" disabled={busy || !login || !password}>
+          <button type="submit" className="clp-button" disabled={busy}>
             {busy ? 'Đang xử lý…' : registering ? 'Tạo tài khoản học sinh' : ui.login.title}
           </button>
         </div>
@@ -132,9 +151,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           className="clp-button clp-button--secondary"
           disabled={busy}
           onClick={() => {
+            clearPasswords(formRef.current);
             setRegistering(!registering);
-            setPassword('');
-            setConfirmation('');
             setError(null);
           }}
         >

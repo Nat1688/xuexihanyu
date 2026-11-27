@@ -12,7 +12,10 @@ const runId = process.env.DICT_RUN_ID;
 assert.match(runId || '', /^[a-z0-9-]{3,40}$/);
 assert.equal(process.env.DICT_DISPOSABLE_APPROVAL, 'APPROVED_55441_3116_5206');
 assert.equal(process.platform, 'win32');
-const owned = path.join(root, '.core-demo', 'dict02-' + runId),
+const owned = path.join(
+    process.env.SEC01_TEMP_ROOT || path.join(root, '.core-demo'),
+    'dict02-' + runId,
+  ),
   data = path.join(owned, 'data');
 assert.ok(!fs.existsSync(owned), 'NEW_DIRECTORY_REQUIRED');
 assert.ok(!fs.existsSync(path.join(root, '.env')), 'ENV_FREE_WORKTREE_REQUIRED');
@@ -724,6 +727,16 @@ async function main() {
     owned,
     step,
   });
+  if (process.env.SEC01_ACCEPTANCE === 'RUN_ON_APPROVED_DISPOSABLE')
+    await require('../security/credential-acceptance.cjs')({
+      prisma,
+      app,
+      vite,
+      browser,
+      owned,
+      api,
+      step,
+    });
   await step('dictionary never creates learning records', async () => {
     assert.deepEqual(await beforeLearning(), learning);
   });
